@@ -29,6 +29,7 @@ type Job struct {
 	ScriptContent  string `json:"scriptContent"`
 	SkipCount      int    `json:"skipCount"`
 	CreatedAt      int64  `json:"createdAt"`
+	NextRunAt      int64  `json:"nextRunAt"` // Unix milliseconds timestamp for the next run
 }
 
 // UserLogin defines the structure for incoming login data.
@@ -48,9 +49,10 @@ var (
 	// Secret key for signing the JWT.
 	jwtKey = []byte("my_super_secret_jwt_signing_key_replace_me_in_production")
 
-	// Global cron instance and mutex for thread-safe reloading
+	// Global cron instance, mutex, and the parser instance (FIXED: now accessible)
 	jobCron   *cron.Cron
 	cronMutex sync.Mutex
+	jobParser cron.Parser // NEW: Global variable to hold the initialized cron parser
 )
 
 // serveIndexFile handles requests to the root path and serves the external index.html file.
@@ -71,7 +73,11 @@ func runJob(job Job) func() {
 
 		// Check and handle skip count
 		var currentSkipCount int
-		err := db.QueryRow("SELECT skipCount FROM jobs WHERE id = ?", job.ID[4:]).Scan(&currentSkipCount)
+		// Extract numeric ID from "job-ID" format
+		var numericID int
+		fmt.Sscanf(job.ID, "job-%d", &numericID)
+
+		err := db.QueryRow("SELECT skipCount FROM jobs WHERE id = ?", numericID).Scan(&currentSkipCount)
 		if err != nil {
 			log.Printf("[ERROR] Failed to read skipCount for job %s: %v", job.ID, err)
 			return
@@ -79,7 +85,7 @@ func runJob(job Job) func() {
 
 		if currentSkipCount > 0 {
 			// Decrement skip count and skip execution
-			_, err = db.Exec("UPDATE jobs SET skipCount = ? WHERE id = ?", currentSkipCount-1, job.ID[4:])
+			_, err = db.Exec("UPDATE jobs SET skipCount = ? WHERE id = ?", currentSkipCount-1, numericID)
 			if err != nil {
 				log.Printf("[ERROR] Failed to decrement skipCount for job %s: %v", job.ID, err)
 			}
@@ -115,9 +121,9 @@ func startScheduler() {
 
 	// 2. Initialize a new scheduler with custom second-level parser
 	// Standard cron has 5 fields. The 'WithSeconds()' option adds the 6th, which is needed for some cron definitions.
-	jobCron = cron.New(cron.WithParser(cron.NewParser(
-		cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
-	)))
+	newParser := cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor)
+	jobCron = cron.New(cron.WithParser(newParser))
+	jobParser = newParser // FIX: Store the initialized parser instance globally
 
 	log.Println("[SCHEDULER] Fetching all jobs to schedule...")
 
@@ -219,9 +225,10 @@ func initializeDB(dbPath, adminPassword string) error {
 		log.Println("Database already contains job data, skipping mock data insertion.")
 	} else {
 		now := time.Now().UnixNano() / int64(time.Millisecond)
+		// NOTE: Updated mock jobs to use 6-part cron for seconds-level timing
 		mockJobs := []Job{
 			{Title: "Heartbeat Check (Every 10s)", Description: "Simple log every 10 seconds for testing.", ScriptContent: "#!/bin/bash\necho \"Heartbeat at $(date)\"", CronExpression: "*/10 * * * * *", CreatedAt: now - 86400000},
-			{Title: "Cache Purge (Daily)", Description: "Simulate clearing cache entries daily at 2:00 AM.", ScriptContent: "#!/bin/bash\n/usr/local/bin/clear_cache.sh", CronExpression: "0 2 * * *", CreatedAt: now - 172800000},
+			{Title: "Cache Purge (Daily)", Description: "Simulate clearing cache entries daily at 2:00 AM.", ScriptContent: "#!/bin/bash\n/usr/local/bin/clear_cache.sh", CronExpression: "0 0 2 * * *", CreatedAt: now - 172800000}, // Changed to 6 fields
 		}
 		for _, job := range mockJobs {
 			// Note: using 6-part cron for seconds-level timing in the mock data
@@ -381,7 +388,14 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 	defer rows.Close()
 
+	// FIX: Use the global jobParser instance
+	cronMutex.Lock()
+	parser := jobParser
+	cronMutex.Unlock()
+
 	jobList := []Job{}
+	now := time.Now()
+
 	for rows.Next() {
 		var job Job
 		var id int
@@ -391,6 +405,18 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 			continue
 		}
 		job.ID = fmt.Sprintf("job-%d", id)
+
+		// Calculate the next run time
+		schedule, parseErr := parser.Parse(job.CronExpression)
+		if parseErr != nil {
+			log.Printf("[ERROR] Failed to parse cron expression '%s' for job %s: %v", job.CronExpression, job.ID, parseErr)
+			job.NextRunAt = 0 // Indicate failure/unknown
+		} else {
+			nextTime := schedule.Next(now)
+			// Convert time.Time to Unix milliseconds for the frontend
+			job.NextRunAt = nextTime.UnixNano() / int64(time.Millisecond)
+		}
+
 		jobList = append(jobList, job)
 	}
 
@@ -402,6 +428,17 @@ func createOrUpdateJobHandler(w http.ResponseWriter, r *http.Request) {
 	var job Job
 	if err := json.NewDecoder(r.Body).Decode(&job); err != nil {
 		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid job data"})
+		return
+	}
+
+	// Basic validation: ensure the cron expression is valid *before* saving
+	// FIX: Use the global jobParser instance
+	cronMutex.Lock()
+	parser := jobParser
+	cronMutex.Unlock()
+
+	if _, err := parser.Parse(job.CronExpression); err != nil {
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("Invalid CRON expression: %v", err)})
 		return
 	}
 
