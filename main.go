@@ -412,7 +412,14 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 			log.Printf("[ERROR] Failed to parse cron expression '%s' for job %s: %v", job.CronExpression, job.ID, parseErr)
 			job.NextRunAt = 0 // Indicate failure/unknown
 		} else {
+			// Start from current time
 			nextTime := schedule.Next(now)
+
+			// Apply SkipCount: iterate schedule.Next() SkipCount times to find the effective run time
+			for i := 0; i < job.SkipCount; i++ {
+				nextTime = schedule.Next(nextTime)
+			}
+
 			// Convert time.Time to Unix milliseconds for the frontend
 			job.NextRunAt = nextTime.UnixNano() / int64(time.Millisecond)
 		}
