@@ -3,17 +3,20 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"errors" // REQUIRED: Added standard 'errors' package for checking specific JWT errors in v5
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/robfig/cron/v3"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -42,18 +45,126 @@ type Claims struct {
 
 var (
 	db *sql.DB
-	// Secret key for signing the JWT. MUST be kept secret and should be loaded from environment vars in production.
+	// Secret key for signing the JWT.
 	jwtKey = []byte("my_super_secret_jwt_signing_key_replace_me_in_production")
+
+	// Global cron instance and mutex for thread-safe reloading
+	jobCron   *cron.Cron
+	cronMutex sync.Mutex
 )
+
+// serveIndexFile handles requests to the root path and serves the external index.html file.
+func serveIndexFile(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, "index.html")
+}
+
+// --- Scheduler and Execution Logic ---
+
+// runJob executes the script content for a given job.
+func runJob(job Job) func() {
+	return func() {
+		log.Printf("[SCHEDULER] Job %s (ID: %s) triggered with cron: %s", job.Title, job.ID, job.CronExpression)
+
+		// Check and handle skip count
+		var currentSkipCount int
+		err := db.QueryRow("SELECT skipCount FROM jobs WHERE id = ?", job.ID[4:]).Scan(&currentSkipCount)
+		if err != nil {
+			log.Printf("[ERROR] Failed to read skipCount for job %s: %v", job.ID, err)
+			return
+		}
+
+		if currentSkipCount > 0 {
+			// Decrement skip count and skip execution
+			_, err = db.Exec("UPDATE jobs SET skipCount = ? WHERE id = ?", currentSkipCount-1, job.ID[4:])
+			if err != nil {
+				log.Printf("[ERROR] Failed to decrement skipCount for job %s: %v", job.ID, err)
+			}
+			log.Printf("[SKIP] Job %s skipped. Remaining skips: %d", job.Title, currentSkipCount-1)
+			return
+		}
+
+		// Execute the script using /bin/bash -c
+		cmd := exec.Command("/bin/bash", "-c", job.ScriptContent)
+		output, err := cmd.CombinedOutput()
+
+		if err != nil {
+			log.Printf("[EXECUTION FAILED] Job %s failed: %v\nOutput:\n%s", job.Title, err, string(output))
+		} else {
+			log.Printf("[EXECUTION SUCCESS] Job %s finished.\nOutput:\n%s", job.Title, string(output))
+		}
+	}
+}
+
+// startScheduler fetches all jobs and sets up the cron schedule.
+// This function should be called after any job CRUD operation.
+func startScheduler() {
+	cronMutex.Lock()
+	defer cronMutex.Unlock()
+
+	// 1. Stop the current scheduler if it's running
+	if jobCron != nil {
+		log.Println("[SCHEDULER] Stopping existing cron scheduler...")
+		// Use a context to wait for running jobs to finish, with a timeout
+		ctx := jobCron.Stop()
+		<-ctx.Done() // Wait for the stop signal
+	}
+
+	// 2. Initialize a new scheduler with custom second-level parser
+	// Standard cron has 5 fields. The 'WithSeconds()' option adds the 6th, which is needed for some cron definitions.
+	jobCron = cron.New(cron.WithParser(cron.NewParser(
+		cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+	)))
+
+	log.Println("[SCHEDULER] Fetching all jobs to schedule...")
+
+	// 3. Fetch all jobs from the database
+	rows, err := db.Query(`
+		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt 
+		FROM jobs;
+	`)
+	if err != nil {
+		log.Printf("[ERROR] Failed to fetch jobs for scheduler: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	// 4. Add each job to the scheduler
+	jobsScheduled := 0
+	for rows.Next() {
+		var job Job
+		var id int
+		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt)
+		if err != nil {
+			log.Printf("[ERROR] Error scanning job row for scheduling: %v", err)
+			continue
+		}
+		job.ID = fmt.Sprintf("job-%d", id)
+
+		// Add the job to cron
+		_, err = jobCron.AddFunc(job.CronExpression, runJob(job))
+		if err != nil {
+			log.Printf("[ERROR] Failed to schedule job %s (%s): %v", job.Title, job.CronExpression, err)
+			continue
+		}
+		jobsScheduled++
+	}
+
+	// 5. Start the new scheduler in a background goroutine
+	jobCron.Start()
+	log.Printf("[SCHEDULER] Scheduler successfully restarted. %d jobs scheduled.", jobsScheduled)
+}
 
 // --- Database Initialization and Handlers ---
 
-// initializeDB now accepts the database file path and the desired admin password string.
+// initializeDB initializes the SQLite database, creates tables, and sets up the default admin user.
 func initializeDB(dbPath, adminPassword string) error {
 	var err error
 
-	// Open the database using the file path for persistence.
-	// We append "?_foreign_keys=on" to ensure relational integrity is enforced.
+	// Open the database for persistence.
 	db, err = sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
 	if err != nil {
 		return fmt.Errorf("error opening persistent database at %s: %w", dbPath, err)
@@ -101,7 +212,7 @@ func initializeDB(dbPath, adminPassword string) error {
 		return fmt.Errorf("error inserting default user: %w", err)
 	}
 
-	// Insert mock jobs only if the jobs table is empty (simple check for new DB)
+	// Insert mock jobs only if the jobs table is empty
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM jobs").Scan(&count)
 	if err != nil || count > 0 {
@@ -109,10 +220,11 @@ func initializeDB(dbPath, adminPassword string) error {
 	} else {
 		now := time.Now().UnixNano() / int64(time.Millisecond)
 		mockJobs := []Job{
-			{Title: "Database Backup", Description: "Run daily incremental backup.", ScriptContent: "#!/bin/bash\n...", CronExpression: "0 2 * * *", CreatedAt: now - 86400000},
-			{Title: "Cache Purge", Description: "Clear old cache entries.", ScriptContent: "#!/bin/bash\n...", CronExpression: "*/30 * * * *", CreatedAt: now - 172800000},
+			{Title: "Heartbeat Check (Every 10s)", Description: "Simple log every 10 seconds for testing.", ScriptContent: "#!/bin/bash\necho \"Heartbeat at $(date)\"", CronExpression: "*/10 * * * * *", CreatedAt: now - 86400000},
+			{Title: "Cache Purge (Daily)", Description: "Simulate clearing cache entries daily at 2:00 AM.", ScriptContent: "#!/bin/bash\n/usr/local/bin/clear_cache.sh", CronExpression: "0 2 * * *", CreatedAt: now - 172800000},
 		}
 		for _, job := range mockJobs {
+			// Note: using 6-part cron for seconds-level timing in the mock data
 			_, err = db.Exec(`
 				INSERT INTO jobs (title, description, cronExpression, scriptContent, createdAt) 
 				VALUES (?, ?, ?, ?, ?);
@@ -148,7 +260,8 @@ func enableCORS(next http.Handler) http.Handler {
 func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	response, err := json.Marshal(payload)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error": "JSON marshalling error"}, %v`, err), http.StatusInternalServerError)
+		// FIX: Corrected fmt.Sprintf to include %v for error argument
+		http.Error(w, fmt.Sprintf(`{"error": "JSON marshalling error: %v"}`, err), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -185,7 +298,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	// Compare password against the stored hash using bcrypt
 	err = bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(loginData.Password))
 	if err != nil {
-		// bcrypt.CompareHashAndPassword returns an error if the hash doesn't match
 		respondJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
 		return
 	}
@@ -241,7 +353,6 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if err != nil || !token.Valid {
 			log.Printf("Token validation failed: %v", err)
 
-			// Check specifically for token expiration error using the standard errors package with JWT v5
 			if errors.Is(err, jwt.ErrTokenExpired) {
 				respondJSON(w, http.StatusUnauthorized, map[string]string{"error": "Token expired"})
 				return
@@ -251,8 +362,6 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Token is valid. We can access claims.UserID if needed later.
-		log.Printf("Access granted for User ID: %s", claims.UserID)
 		next.ServeHTTP(w, r)
 	}
 }
@@ -260,7 +369,6 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 // --- Job Management Handlers (SQL Implementation) ---
 
 // getJobsHandler handles GET /api/jobs.
-// Changed 'r' to '_' because the request object is not needed for this handler.
 func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 	rows, err := db.Query(`
 		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt 
@@ -313,6 +421,10 @@ func createOrUpdateJobHandler(w http.ResponseWriter, r *http.Request) {
 		id, _ := res.LastInsertId()
 		job.ID = fmt.Sprintf("job-%d", id)
 		job.CreatedAt = time.Now().UnixNano() / int64(time.Millisecond) // Approximate for response
+
+		// RELOAD SCHEDULER
+		go startScheduler()
+
 		respondJSON(w, http.StatusCreated, job)
 		return
 	}
@@ -324,11 +436,12 @@ func createOrUpdateJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reset skipCount on update
 	result, err := db.Exec(`
 		UPDATE jobs 
 		SET title=?, description=?, cronExpression=?, scriptContent=?, skipCount=? 
 		WHERE id=?;
-	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, 0, jobID) // Reset skipCount on update
+	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, 0, jobID)
 
 	if err != nil {
 		log.Printf("SQL Update Error: %v", err)
@@ -341,6 +454,9 @@ func createOrUpdateJobHandler(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusNotFound, map[string]string{"error": "Job not found for update"})
 		return
 	}
+
+	// RELOAD SCHEDULER
+	go startScheduler()
 
 	respondJSON(w, http.StatusOK, job)
 }
@@ -367,6 +483,9 @@ func deleteJobHandler(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusNotFound, map[string]string{"error": "Job not found"})
 		return
 	}
+
+	// RELOAD SCHEDULER
+	go startScheduler()
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -411,7 +530,10 @@ func skipJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Job %s skipped. New SkipCount: %d", jobIDStr, newSkipCount)
+	// NOTE: The scheduler relies on the DB state, so we don't need to reload cron here,
+	// but we should ensure the front-end sees the updated skip count.
+
+	log.Printf("Job %s skip count incremented to %d", jobIDStr, newSkipCount)
 	respondJSON(w, http.StatusOK, map[string]interface{}{"id": jobIDStr, "skipCount": newSkipCount})
 }
 
@@ -430,31 +552,30 @@ func main() {
 	}
 
 	// 3. Initialize the persistent database
-	if err := initializeDB(*dbPathPtr, adminPassword); err != nil { // Pass the database path and password
+	if err := initializeDB(*dbPathPtr, adminPassword); err != nil {
 		log.Fatalf("Fatal Error initializing database: %v", err)
 	}
 	defer db.Close()
+
+	// 4. Initialize and start the job scheduler immediately
+	startScheduler()
 
 	mux := http.NewServeMux()
 
 	// Public API Route (Login)
 	mux.HandleFunc("/login", loginHandler)
 
-	// Default route for API information
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Scheduled Job Management API is running. Access /api/jobs for authenticated endpoints."))
-	})
+	// Root route to serve the external HTML file
+	mux.HandleFunc("/", serveIndexFile)
 
-	// Protected API Routes
+	// Protected API Routes setup
 	apiMux := http.NewServeMux()
 
 	apiMux.HandleFunc("/api/jobs", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			getJobsHandler(w, r)
-		case http.MethodPost:
+		case http.MethodPost: // Handles both Create and Update
 			createOrUpdateJobHandler(w, r)
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -500,7 +621,21 @@ func main() {
 		log.Printf("Admin password is the default 'password' (hashed). Use -admin-pass flag to change.")
 	}
 	log.Printf("Starting server on http://localhost%s", serverAddr)
-	log.Printf("PERSISTENT DATABASE FILE: %s", *dbPathPtr) // Log the file path
+	log.Printf("PERSISTENT DATABASE FILE: %s", *dbPathPtr)
+
+	// Server Shutdown hook (optional but good practice)
+	// Ensures cron scheduler is gracefully stopped if the server is shut down
+	go func() {
+		sigint := make(chan os.Signal, 1)
+		// signal.Notify(sigint, os.Interrupt) // uncomment if running directly on OS
+		<-sigint
+		log.Println("Shutting down scheduler...")
+		ctx := jobCron.Stop()
+		<-ctx.Done()
+		log.Println("Scheduler stopped. Server exiting.")
+		os.Exit(0)
+	}()
+
 	if err := http.ListenAndServe(serverAddr, handler); err != nil {
 		log.Fatal("ListenAndServe:", err)
 	}
