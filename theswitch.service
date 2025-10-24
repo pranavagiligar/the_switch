@@ -1,0 +1,15 @@
+[Unit]
+Description=Switch Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/home/pranava/switch
+ExecStart=/bin/bash -c './switch'
+Restart=always
+User=pranava
+RestartSec=3
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

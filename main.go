@@ -312,7 +312,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	// Authentication successful: create JWT token
 	userID := strconv.Itoa(storedID)
 	// Token valid for 5 minutes
-	expirationTime := time.Now().Add(5 * time.Minute)
+	expirationTime := time.Now().Add(24 * time.Hour)
 
 	claims := &Claims{
 		UserID: userID,

@@ -1,0 +1,15 @@
+[Unit]
+Description=Switch Telegram Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/home/pranava/switch/bot
+ExecStart=/bin/bash -c './switch_bot'
+Restart=always
+User=pranava
+RestartSec=3
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
