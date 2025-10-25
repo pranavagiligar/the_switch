@@ -4,7 +4,6 @@ import (
 	"bufio" // NEW: Required for reading the .env file line by line
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -55,313 +54,350 @@ type Job struct {
 type SkipResponse struct {
 	ID        string `json:"id"`
 	SkipCount int    `json:"skipCount"`
+	Message   string `json:"message"`
 }
 
 // --- Utility Functions ---
 
-// loadEnvFromFile manually reads a .env file and sets environment variables using only standard library functions.
-func loadEnvFromFile(filename string) error {
+// loadEnv loads environment variables from a .env file
+func loadEnv(filename string) {
 	file, err := os.Open(filename)
-	if errors.Is(err, os.ErrNotExist) {
-		// Log a warning and proceed if .env is missing, allowing fallback to system environment
-		log.Printf("Warning: .env file not found at %s. Proceeding with system environment variables.", filename)
-		return nil
-	}
 	if err != nil {
-		return fmt.Errorf("failed to open %s: %w", filename, err)
+		log.Printf("[INFO] .env file not found or could not be opened: %v. Using OS environment variables.", err)
+		return
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		// Ignore comments and empty lines
-		if len(line) == 0 || strings.HasPrefix(line, "#") {
+		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 
-		// Split line into key=value
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
-			// Trim spaces and basic quotes (") from the value
 			value := strings.TrimSpace(strings.Trim(parts[1], `"`))
-			if key != "" {
-				os.Setenv(key, value)
-			}
+			os.Setenv(key, value)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading %s: %w", filename, err)
+		log.Printf("[WARNING] Error reading .env file: %v", err)
 	}
-	log.Printf("Successfully loaded configuration from %s.", filename)
-	return nil
 }
 
-// getJobManagerToken authenticates with the Job Manager API and stores the JWT.
-func getJobManagerToken() error {
-	log.Println("[AUTH] Attempting to log in to Job Manager API...")
+// initializeConfig reads configuration from environment variables
+func initializeConfig() {
+	apiBaseURL = os.Getenv("API_BASE_URL")
+	if apiBaseURL == "" {
+		// Use the default if environment variable is not set
+		apiBaseURL = "http://localhost:8080"
+	}
 
-	// 1. Prepare login data
-	loginData := map[string]string{
+	defaultUsername = os.Getenv("DEFAULT_USERNAME")
+	if defaultUsername == "" {
+		defaultUsername = "admin"
+	}
+
+	defaultPassword = os.Getenv("DEFAULT_PASSWORD")
+	if defaultPassword == "" {
+		defaultPassword = "password"
+	}
+
+	userIDStr := os.Getenv("TELEGRAM_USER_ID")
+	if userIDStr == "" {
+		log.Printf("[WARNING] TELEGRAM_USER_ID is not set. The bot will not be able to authorize any users.")
+	} else {
+		id, err := strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			log.Fatalf("FATAL: Invalid TELEGRAM_USER_ID format: %v", err)
+		}
+		authorizedUserID = id
+		log.Printf("[INFO] Bot authorized for Telegram user ID: %d", authorizedUserID)
+	}
+	log.Printf("[INFO] API Base URL set to: %s", apiBaseURL)
+}
+
+// authenticate attempts to get a new JWT token from the API
+func authenticate() error {
+	log.Println("[AUTH] Attempting to authenticate with Job Manager API...")
+
+	payload := map[string]string{
 		"username": defaultUsername,
 		"password": defaultPassword,
 	}
-	jsonBody, err := json.Marshal(loginData)
-	if err != nil {
-		return fmt.Errorf("failed to marshal login data: %w", err)
-	}
+	payloadBytes, _ := json.Marshal(payload)
 
-	// 2. Make the POST request to /login
-	url := fmt.Sprintf("%s/login", apiBaseURL)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequest("POST", apiBaseURL+"/login", bytes.NewBuffer(payloadBytes))
 	if err != nil {
-		return fmt.Errorf("failed to create login request: %w", err)
+		return fmt.Errorf("failed to create auth request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("API connection error: check if Job Manager is running at %s: %w", apiBaseURL, err)
+		return fmt.Errorf("auth request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("authentication failed: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+		var errRes map[string]string
+		json.NewDecoder(resp.Body).Decode(&errRes)
+		return fmt.Errorf("auth failed with status %d: %s", resp.StatusCode, errRes["error"])
 	}
 
-	// 3. Decode the response
 	var authResponse AuthResponse
 	if err := json.NewDecoder(resp.Body).Decode(&authResponse); err != nil {
-		return fmt.Errorf("failed to decode auth response: %w", err)
+		return fmt.Errorf("failed to parse auth response: %w", err)
 	}
 
-	// 4. Store the token securely
 	tokenMutex.Lock()
 	jwtToken = authResponse.Token
 	tokenMutex.Unlock()
-
-	log.Println("[AUTH] Successfully authenticated. JWT token acquired.")
+	log.Println("[AUTH] Successfully authenticated. Token obtained.")
 	return nil
 }
 
-// getJobs fetches the list of jobs from the Job Manager API.
-func getJobs() ([]Job, error) {
+// refreshAuth ensures the JWT is available and valid (by trying to refresh if needed)
+func refreshAuth() error {
 	tokenMutex.RLock()
-	token := jwtToken
+	tokenExists := jwtToken != ""
 	tokenMutex.RUnlock()
 
-	if token == "" {
-		return nil, errors.New("not authenticated. Please ensure the bot started successfully with credentials")
+	if !tokenExists {
+		return authenticate()
+	}
+	// In a real scenario, you'd check token expiration here. For simplicity,
+	// we rely on the API returning 401 and triggering a re-auth on the next API call.
+	return nil
+}
+
+// isAuthorized checks if the Telegram chat ID matches the authorized user ID
+func isAuthorized(chatID int64) bool {
+	return authorizedUserID != 0 && chatID == authorizedUserID
+}
+
+// apiCall performs an authenticated call to the job manager API
+func apiCall(method, path string, body io.Reader) (*http.Response, error) {
+	// Ensure authentication is fresh
+	if err := refreshAuth(); err != nil {
+		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/api/jobs", apiBaseURL)
-	req, err := http.NewRequest("GET", url, nil)
+	url := apiBaseURL + path
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	tokenMutex.RLock()
+	req.Header.Set("Authorization", "Bearer "+jwtToken)
+	tokenMutex.RUnlock()
 
 	resp, err := httpClient.Do(req)
+
+	// If 401, clear the token and try again once (recursive call, limited depth)
+	if resp != nil && resp.StatusCode == http.StatusUnauthorized {
+		log.Println("[AUTH] Token expired, attempting re-authentication...")
+		tokenMutex.Lock()
+		jwtToken = "" // Clear invalid token
+		tokenMutex.Unlock()
+		if err := authenticate(); err != nil {
+			return nil, fmt.Errorf("re-authentication failed: %w", err)
+		}
+		// Second attempt after re-authentication
+		req.Header.Set("Authorization", "Bearer "+jwtToken)
+		return httpClient.Do(req)
+	}
+
+	return resp, err
+}
+
+// --- Command Handlers ---
+
+// handleStart sends the welcome message and instructions
+func handleStart(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	// A simple helper function to generate the common help text
+	helpText := fmt.Sprintf(
+		"👋 **Welcome to The Switch Bot!**\n\n"+
+			"This bot helps you manage your *Scheduled Job Manager* running at: `%s`\n\n"+
+			"### Commands\n"+
+			"• /list - List all scheduled jobs.\n"+
+			"• /skip <id> - Skip the next scheduled run for a specific job ID.\n"+
+			"• /run <id> - Manually trigger a job to run immediately.\n"+
+			"• /help - Show this message.\n\n"+
+			"Your Telegram ID: `%d`\n",
+		apiBaseURL,
+		update.Message.Chat.ID,
+	)
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, helpText)
+	msg.ParseMode = "Markdown"
+	bot.Send(msg)
+}
+
+// handleList fetches and displays all scheduled jobs
+func handleList(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	resp, err := apiCall("GET", "/api/jobs/", nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to API: %w", err)
+		sendError(bot, update.Message.Chat.ID, "Failed to connect to API or authenticate.", err)
+		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch jobs: API responded with status %d, body: %s", resp.StatusCode, string(bodyBytes))
+		sendApiError(bot, update.Message.Chat.ID, "API returned an error while fetching jobs.", resp)
+		return
 	}
 
 	var jobs []Job
 	if err := json.NewDecoder(resp.Body).Decode(&jobs); err != nil {
-		return nil, fmt.Errorf("failed to decode jobs response: %w", err)
-	}
-	return jobs, nil
-}
-
-// skipJob sends a request to skip the next execution of a specific job.
-func skipJob(jobID string) (SkipResponse, error) {
-	tokenMutex.RLock()
-	token := jwtToken
-	tokenMutex.RUnlock()
-
-	if token == "" {
-		return SkipResponse{}, errors.New("not authenticated")
-	}
-
-	url := fmt.Sprintf("%s/api/jobs/%s/skip", apiBaseURL, jobID)
-	req, err := http.NewRequest("POST", url, nil)
-	if err != nil {
-		return SkipResponse{}, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return SkipResponse{}, fmt.Errorf("failed to connect to API: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return SkipResponse{}, fmt.Errorf("failed to skip job: API responded with status %d, body: %s", resp.StatusCode, string(bodyBytes))
-	}
-
-	var skipRes SkipResponse
-	if err := json.NewDecoder(resp.Body).Decode(&skipRes); err != nil {
-		return SkipResponse{}, fmt.Errorf("failed to decode skip response: %w", err)
-	}
-	return skipRes, nil
-}
-
-// isAuthorized checks if the given chat ID matches the configured authorizedUserID.
-func isAuthorized(chatID int64) bool {
-	return chatID == authorizedUserID
-}
-
-// --- Telegram Handlers ---
-
-func handleStart(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-		"✅ **Access Granted**\n\n"+
-			"Welcome to the **Job Manager Bot**! Your ID is authorized.\n"+
-			"Use the commands below to manage your scheduled tasks remotely:\n\n"+
-			"**/list** - Show all scheduled jobs, cron expressions, and next run times.\n"+
-			"**/skip <job-id>** - Skip the next execution for the specified job (e.g., `/skip job-1`).",
-	)
-	msg.ParseMode = "Markdown"
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Error sending start message: %v", err)
-	}
-}
-
-func handleList(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	jobs, err := getJobs()
-
-	if err != nil {
-		errMsg := fmt.Sprintf("❌ Error listing jobs: %v", err)
-		log.Println(errMsg)
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, errMsg)
-		bot.Send(msg)
+		sendError(bot, update.Message.Chat.ID, "Failed to parse API response for jobs list.", err)
 		return
 	}
 
 	if len(jobs) == 0 {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "No jobs are currently scheduled in the Job Manager.")
-		bot.Send(msg)
+		sendPlain(bot, update.Message.Chat.ID, "✅ No jobs are currently scheduled.")
 		return
 	}
 
-	var sb strings.Builder
-	sb.WriteString("🗓️ **Scheduled Jobs**:\n\n")
+	var message strings.Builder
+	message.WriteString("📋 **Scheduled Jobs**\n\n")
 
 	for _, job := range jobs {
-		nextRunTime := "N/A (Invalid Cron)"
-		if job.NextRunAt > 0 {
-			t := time.Unix(job.NextRunAt/1000, (job.NextRunAt%1000)*int64(time.Millisecond))
-			nextRunTime = t.Format("2 Jan 15:04:05")
+		// Convert NextRunAt from Unix milliseconds to readable format
+		nextRunTime := time.Unix(0, job.NextRunAt*int64(time.Millisecond)).Format("Jan 2, 2006 15:04:05 MST")
+		if job.NextRunAt == 0 {
+			nextRunTime = "Invalid CRON"
 		}
 
-		sb.WriteString(fmt.Sprintf(
-			"**%s** (`%s`)\n"+
-				"**ID**: %s\n"+
-				"**Cron**: `%s`\n"+
-				"**Next Run**: %s\n"+
-				"**Skip Count**: %d\n\n",
-			job.Title, job.ID, job.ID, job.CronExpression, nextRunTime, job.SkipCount,
+		message.WriteString(fmt.Sprintf(
+			"**ID:** `%s`\n"+
+				"**Title:** %s\n"+
+				"**Cron:** `%s`\n"+
+				"**Next:** %s\n"+
+				"**Skips:** %d\n\n",
+			job.ID,
+			job.Title,
+			job.CronExpression,
+			nextRunTime,
+			job.SkipCount,
 		))
 	}
 
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, sb.String())
-	msg.ParseMode = "Markdown"
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Error sending list message: %v", err)
-	}
+	sendMarkdown(bot, update.Message.Chat.ID, message.String())
 }
 
+// handleSkip skips the next execution of a specified job
 func handleSkip(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	// Expecting: /skip job-1
-	args := update.Message.CommandArguments()
-	parts := strings.Fields(args)
-
-	if len(parts) != 1 {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-			"⚠️ Invalid command format. Usage: `/skip <job-id>` (e.g., `/skip job-1`)",
-		)
-		msg.ParseMode = "Markdown"
-		bot.Send(msg)
+	jobID := update.Message.CommandArguments()
+	if jobID == "" {
+		sendPlain(bot, update.Message.Chat.ID, "❌ Please specify a Job ID. Usage: /skip job-1")
 		return
 	}
 
-	jobID := parts[0]
-
-	// Basic validation of job-ID format
-	if !strings.HasPrefix(jobID, "job-") {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ Job ID must be in the format `job-N` (e.g., `job-5`).")
-		bot.Send(msg)
-		return
-	}
-
-	// Call the API to skip the job
-	skipRes, err := skipJob(jobID)
-
+	resp, err := apiCall("POST", "/api/jobs/"+jobID+"/skip", nil)
 	if err != nil {
-		errMsg := fmt.Sprintf("❌ Error skipping job `%s`: %v", jobID, err)
-		log.Println(errMsg)
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, errMsg)
-		msg.ParseMode = "Markdown"
-		bot.Send(msg)
+		sendError(bot, update.Message.Chat.ID, fmt.Sprintf("Failed to connect or authenticate to skip job `%s`.", jobID), err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		sendApiError(bot, update.Message.Chat.ID, fmt.Sprintf("API returned an error while skipping job `%s`.", jobID), resp)
 		return
 	}
 
-	successMsg := fmt.Sprintf(
-		"✅ Success! Job `%s` was skipped.\n"+
-			"The next execution will be ignored.\n"+
-			"New Skip Count: %d",
-		skipRes.ID, skipRes.SkipCount,
-	)
+	var skipRes SkipResponse
+	if err := json.NewDecoder(resp.Body).Decode(&skipRes); err != nil {
+		sendError(bot, update.Message.Chat.ID, "Failed to parse API response for skip operation.", err)
+		return
+	}
 
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, successMsg)
-	msg.ParseMode = "Markdown"
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Error sending skip message: %v", err)
+	msgText := fmt.Sprintf("✅ Job `%s` successfully skipped.\nNew Skip Count: **%d**", jobID, skipRes.SkipCount)
+	sendMarkdown(bot, update.Message.Chat.ID, msgText)
+}
+
+// handleRun manually triggers a specified job
+func handleRun(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	jobID := update.Message.CommandArguments()
+	if jobID == "" {
+		sendPlain(bot, update.Message.Chat.ID, "❌ Please specify a Job ID. Usage: /run job-1")
+		return
+	}
+
+	// NOTE: This uses the new /run endpoint implemented in main.go (Feature 2)
+	resp, err := apiCall("POST", "/api/jobs/"+jobID+"/run", nil)
+	if err != nil {
+		sendError(bot, update.Message.Chat.ID, fmt.Sprintf("Failed to connect or authenticate to run job `%s`.", jobID), err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusAccepted {
+		sendPlain(bot, update.Message.Chat.ID, fmt.Sprintf("⚡ Job `%s` queued for immediate execution! Check the web UI for logs.", jobID))
+	} else {
+		sendApiError(bot, update.Message.Chat.ID, fmt.Sprintf("API returned an error while trying to run job `%s`.", jobID), resp)
 	}
 }
 
-// --- Main Execution ---
+// --- Message Sending Functions ---
+
+func sendPlain(bot *tgbotapi.BotAPI, chatID int64, text string) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	bot.Send(msg)
+}
+
+func sendMarkdown(bot *tgbotapi.BotAPI, chatID int64, text string) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ParseMode = "Markdown"
+	bot.Send(msg)
+}
+
+func sendError(bot *tgbotapi.BotAPI, chatID int64, context string, err error) {
+	log.Printf("[ERROR] %s: %v", context, err)
+	errMsg := fmt.Sprintf("❌ **Error:** %s\n\nDetails: `%s`", context, err.Error())
+	sendMarkdown(bot, chatID, errMsg)
+}
+
+func sendApiError(bot *tgbotapi.BotAPI, chatID int64, context string, resp *http.Response) {
+	var errRes map[string]string
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()                                    // Close after reading
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Re-set body for potential re-reading
+
+	if err := json.Unmarshal(bodyBytes, &errRes); err != nil {
+		log.Printf("[ERROR] %s - Failed to unmarshal API error response: %v", context, err)
+	}
+
+	apiError := errRes["error"]
+	if apiError == "" {
+		apiError = fmt.Sprintf("Unknown error. Status Code: %d", resp.StatusCode)
+	}
+
+	log.Printf("[API ERROR] %s - Status %d: %s", context, resp.StatusCode, apiError)
+	errMsg := fmt.Sprintf("❌ **API Failure** (Status: %d)\n\nContext: %s\nDetails: `%s`", resp.StatusCode, context, apiError)
+	sendMarkdown(bot, chatID, errMsg)
+}
+
+// --- Main Function ---
 
 func main() {
-	// 0. Load variables from .env file
-	// This will read and set variables from the .env file, allowing os.Getenv below to retrieve them.
-	if err := loadEnvFromFile(".env"); err != nil {
-		log.Fatalf("FATAL: Error loading .env file: %v", err)
+	// 1. Load configuration from .env and environment variables
+	loadEnv(".env")
+	initializeConfig()
+
+	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	if botToken == "" {
+		log.Fatal("FATAL: TELEGRAM_BOT_TOKEN environment variable not set.")
 	}
 
-	// 1. Load Configuration
-	apiBaseURL = os.Getenv("API_BASE_URL")
-	botToken := os.Getenv("BOT_TOKEN")
-	defaultUsername = os.Getenv("DEFAULT_USERNAME")
-	defaultPassword = os.Getenv("DEFAULT_PASSWORD")
-	authorizedUserIDStr := os.Getenv("TELEGRAM_USER_ID") // Load Telegram User ID
-
-	// Check if all necessary environment variables are set
-	if botToken == "" || apiBaseURL == "" || defaultUsername == "" || defaultPassword == "" || authorizedUserIDStr == "" {
-		log.Fatal("FATAL: Missing configuration variables. Please ensure BOT_TOKEN, API_BASE_URL, DEFAULT_USERNAME, DEFAULT_PASSWORD, AND TELEGRAM_USER_ID are set in your .env file or environment.")
-	}
-
-	// Parse the authorized user ID
-	var err error
-	authorizedUserID, err = strconv.ParseInt(authorizedUserIDStr, 10, 64)
-	if err != nil {
-		log.Fatalf("FATAL: Invalid TELEGRAM_USER_ID: %v. Must be an integer.", err)
-	}
-
-	// 2. Initial API Authentication
-	if err := getJobManagerToken(); err != nil {
-		log.Fatalf("FATAL: Failed initial authentication with Job Manager API: %v", err)
+	// 2. Initial Authentication
+	if err := authenticate(); err != nil {
+		log.Fatalf("FATAL: Initial authentication with Job Manager API: %v", err)
 	}
 
 	// 3. Initialize Telegram Bot
@@ -403,15 +439,16 @@ func main() {
 		}
 
 		switch update.Message.Command() {
-		case "start":
+		case "start", "help":
 			handleStart(bot, update)
 		case "list":
 			handleList(bot, update)
 		case "skip":
 			handleSkip(bot, update)
+		case "run":
+			handleRun(bot, update)
 		default:
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Unknown command. Use /list or /skip.")
-			bot.Send(msg)
+			sendPlain(bot, update.Message.Chat.ID, "Unknown command. Use /help to see available commands.")
 		}
 	}
 }
