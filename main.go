@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -15,10 +16,18 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/robfig/cron/v3"
 	"golang.org/x/crypto/bcrypt"
 )
+
+//go:embed index.html
+var indexHTML []byte
+
+var version = "dev"
+var commit = "none"
+var buildTime = "unknown"
 
 // Job defines the structure for a scheduled job.
 type Job struct {
@@ -60,7 +69,7 @@ type Claims struct {
 var (
 	db *sql.DB
 	// Secret key for signing the JWT.
-	jwtKey = []byte("my_super_secret_jwt_signing_key_replace_me_in_production")
+	jwtKey []byte
 
 	// Global cron instance, mutex, and the parser instance
 	jobCron   *cron.Cron
@@ -148,8 +157,8 @@ func serveIndexFile(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Note: index.html must exist in the same directory as the executable
-	http.ServeFile(w, r, "index.html")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(indexHTML)
 }
 
 // Converts a Go map to a JSON string for DB storage (Feature 3)
@@ -786,11 +795,32 @@ func getJobHistoryHandler(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, history)
 }
 
+func getEnv(key, fallback string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	}
+	return fallback
+}
+
 // --- Main Function and Routing ---
 
 func main() {
-	dbPathPtr := flag.String("db-path", "job_scheduler.db", "Path to the SQLite database file for persistent storage.")
-	adminPassPtr := flag.String("admin-pass", "", "Set a custom admin password on startup. Defaults to 'password'.")
+	fmt.Printf("Version: %s, Commit: %s, Built: %s\n", version, commit, buildTime)
+
+	// Load .env file if present
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("⚠️  No .env file found, using defaults or flags")
+	}
+
+	// Read from environment (with fallback defaults)
+	defaultDBPath := getEnv("DB_PATH", "job_scheduler.db")
+	defaultAdminPass := getEnv("ADMIN_PASS", "password")
+	jwtKey = []byte(getEnv("JWT_TOKEN_SECRET", ""))
+
+	// Define flags (optional override via CLI)
+	dbPathPtr := flag.String("db-path", defaultDBPath, "Path to the SQLite database file for persistent storage.")
+	adminPassPtr := flag.String("admin-pass", defaultAdminPass, "Set a custom admin password on startup.")
 	flag.Parse()
 
 	// Initialize the database and admin user
