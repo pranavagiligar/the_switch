@@ -34,6 +34,12 @@ var (
 	authorizedUserID int64 // Stores the single authorized Telegram user ID
 )
 
+var (
+	version   = "dev"
+	commit    = "none"
+	buildTime = "unknown"
+)
+
 // --- Data Structures for API Communication ---
 
 // AuthResponse matches the login handler response in main.go
@@ -386,6 +392,8 @@ func sendApiError(bot *tgbotapi.BotAPI, chatID int64, context string, resp *http
 // --- Main Function ---
 
 func main() {
+	fmt.Printf("Version: %s, Commit: %s, Built: %s\n", version, commit, buildTime)
+
 	// 1. Load configuration from .env and environment variables
 	loadEnv(".env")
 	initializeConfig()

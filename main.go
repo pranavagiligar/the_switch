@@ -817,6 +817,7 @@ func main() {
 	defaultDBPath := getEnv("DB_PATH", "job_scheduler.db")
 	defaultAdminPass := getEnv("ADMIN_PASS", "password")
 	jwtKey = []byte(getEnv("JWT_TOKEN_SECRET", ""))
+	port := getEnv("PORT", "8080")
 
 	// Define flags (optional override via CLI)
 	dbPathPtr := flag.String("db-path", defaultDBPath, "Path to the SQLite database file for persistent storage.")
@@ -907,10 +908,6 @@ func main() {
 	// Wrap the main router with the CORS middleware
 	handler := enableCORS(mux)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
 	serverAddr := ":" + port
 
 	log.Printf("Default user: admin")
