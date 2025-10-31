@@ -34,6 +34,12 @@ var (
 	authorizedUserID int64 // Stores the single authorized Telegram user ID
 )
 
+// scheduledNotifications keeps track of the last NextRunAt we scheduled a notification for
+var (
+	scheduledNotifications = make(map[string]int64)
+	schedNotifMutex       sync.Mutex
+)
+
 var (
 	version   = "dev"
 	commit    = "none"
@@ -54,6 +60,7 @@ type Job struct {
 	CronExpression string `json:"cronExpression"`
 	SkipCount      int    `json:"skipCount"`
 	NextRunAt      int64  `json:"nextRunAt"`
+	NotifyBeforeSeconds int64 `json:"notifyBeforeSeconds,omitempty"`
 }
 
 // SkipResponse matches the skip handler response in main.go
@@ -389,6 +396,84 @@ func sendApiError(bot *tgbotapi.BotAPI, chatID int64, context string, resp *http
 	sendMarkdown(bot, chatID, errMsg)
 }
 
+// pollAndScheduleNotifications periodically fetches jobs and schedules pre-run notifications
+func pollAndScheduleNotifications(bot *tgbotapi.BotAPI) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		// Fetch jobs
+		resp, err := apiCall("GET", "/api/jobs/", nil)
+		if err != nil {
+			log.Printf("[NOTIFY] failed to fetch jobs: %v", err)
+			goto wait
+		}
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("[NOTIFY] API returned non-OK status: %d", resp.StatusCode)
+			resp.Body.Close()
+			goto wait
+		}
+
+		var jobs []Job
+		if err := json.NewDecoder(resp.Body).Decode(&jobs); err != nil {
+			resp.Body.Close()
+			log.Printf("[NOTIFY] failed to decode jobs: %v", err)
+			goto wait
+		}
+		resp.Body.Close()
+
+		now := time.Now()
+		for _, job := range jobs {
+			if job.NotifyBeforeSeconds <= 0 || job.NextRunAt <= 0 {
+				continue
+			}
+
+			nextRun := time.Unix(0, job.NextRunAt*int64(time.Millisecond))
+			notifyAt := nextRun.Add(-time.Duration(job.NotifyBeforeSeconds) * time.Second)
+
+			schedNotifMutex.Lock()
+			lastScheduledNext := scheduledNotifications[job.ID]
+			schedNotifMutex.Unlock()
+
+			// If we've already scheduled for this next run, skip
+			if lastScheduledNext == job.NextRunAt {
+				continue
+			}
+
+			// If notify time is past but next run still in future, send immediately
+			if now.After(notifyAt) && now.Before(nextRun) {
+				go func(j Job) {
+					msg := fmt.Sprintf("⏰ Reminder: Job `%s` is scheduled to run at %s (in %s).", j.ID, nextRun.Format("Jan 2 2006 15:04:05 MST"), time.Until(nextRun).Truncate(time.Second))
+					sendMarkdown(bot, authorizedUserID, msg)
+				}(job)
+
+				schedNotifMutex.Lock()
+				scheduledNotifications[job.ID] = job.NextRunAt
+				schedNotifMutex.Unlock()
+				continue
+			}
+
+			// If notify time is in future, schedule it
+			if notifyAt.After(now) {
+				delay := time.Until(notifyAt)
+				// Capture job variable
+				j := job
+				time.AfterFunc(delay, func() {
+					msg := fmt.Sprintf("⏰ Reminder: Job `%s` will run at %s (in %s).", j.ID, nextRun.Format("Jan 2 2006 15:04:05 MST"), time.Until(nextRun).Truncate(time.Second))
+					sendMarkdown(bot, authorizedUserID, msg)
+
+					schedNotifMutex.Lock()
+					scheduledNotifications[j.ID] = j.NextRunAt
+					schedNotifMutex.Unlock()
+				})
+			}
+		}
+
+	wait:
+		<-ticker.C
+	}
+}
+
 // --- Main Function ---
 
 func main() {
@@ -422,6 +507,9 @@ func main() {
 	u.Timeout = 60
 
 	updates := bot.GetUpdatesChan(u)
+
+	// Start background poller that schedules pre-run Telegram notifications
+	go pollAndScheduleNotifications(bot)
 
 	for update := range updates {
 		if update.Message == nil { // ignore any non-message updates

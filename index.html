@@ -268,6 +268,15 @@
 
         // --- Rendering Logic: Dashboard ---
 
+        // Helper: format seconds to short notation (d/h/m/s) for pre-filling notifyBefore
+        function formatSecondsToShort(sec) {
+            if (!sec || sec <= 0) return '';
+            if (sec % 86400 === 0) return (sec / 86400) + 'd';
+            if (sec % 3600 === 0) return (sec / 3600) + 'h';
+            if (sec % 60 === 0) return (sec / 60) + 'm';
+            return sec + 's';
+        }
+
         function renderDashboard() {
             updateAuthState(true);
             const contentArea = document.getElementById('content-area');
@@ -546,6 +555,35 @@
                                 <input type="text" id="cronExpression" name="cronExpression" value="${escapeHtml(jobData.cronExpression)}" class="mt-1 input-style font-mono text-base" required>
                                 <p id="cron-description" class="text-sm mt-2 text-indigo-600 italic font-semibold flex items-center">${renderIcon('calendar-search', 'w-4 h-4 mr-1')}</p>
                             </div>
+                                            <div class="mb-4">
+                                                <div class="flex items-center space-x-2">
+                                                    <label for="notifyBefore" class="block text-sm font-medium text-gray-700">Pre-run Notification (optional)</label>
+                                                    <!-- Tooltip trigger -->
+                                                    <div class="relative group inline-block" aria-hidden="true">
+                                                        <button type="button" class="p-1 text-indigo-500 hover:text-indigo-700 rounded-full" tabindex="-1" aria-label="Notify format help">
+                                                            ${renderIcon('info', 'w-4 h-4')}
+                                                        </button>
+                                                        <!-- Tooltip box -->
+                                                        <div class="pointer-events-none absolute left-6 top-0 z-50 hidden group-hover:block group-focus:block w-72">
+                                                            <div class="bg-gray-800 text-white text-xs rounded-md p-3 shadow-lg">
+                                                                <div class="font-semibold mb-1">Allowed formats</div>
+                                                                <div class="text-[13px] leading-snug">Use a number followed by a unit: <strong>s</strong> (seconds), <strong>m</strong> (minutes), <strong>h</strong> (hours), <strong>d</strong> (days). You may combine units, for example:</div>
+                                                                <ul class="mt-2 list-disc list-inside text-[13px]">
+                                                                    <li><code class="bg-gray-700 px-1 rounded">30s</code> — 30 seconds</li>
+                                                                    <li><code class="bg-gray-700 px-1 rounded">5m</code> — 5 minutes</li>
+                                                                    <li><code class="bg-gray-700 px-1 rounded">2h</code> — 2 hours</li>
+                                                                    <li><code class="bg-gray-700 px-1 rounded">1d</code> — 1 day</li>
+                                                                    <li><code class="bg-gray-700 px-1 rounded">1d2h30m</code> — combined (1 day, 2 hours, 30 minutes)</li>
+                                                                </ul>
+                                                                <div class="mt-2 text-yellow-200 text-[12px]">Note: Intended for jobs that recur &gt; 24 hours; the server will validate and may reject shorter schedules.</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <input type="text" id="notifyBefore" name="notifyBefore" placeholder="e.g. 5m, 1h, 1d or 1d2h30m" value="${escapeHtml(formatSecondsToShort(jobData.notifyBeforeSeconds || 0))}" class="mt-1 input-style" />
+                                                <p id="notify-info" class="text-xs text-gray-500 mt-1">If set, the bot will send a Telegram reminder <strong>before</strong> the job runs.</p>
+                                                <p id="notify-warning" class="text-xs mt-1 hidden"></p>
+                                            </div>
                         </div>
 
                         <div class="mb-8 p-4 border rounded-xl bg-gray-50">
@@ -617,6 +655,54 @@
             cronInput.addEventListener('input', updateCronDescription);
             updateCronDescription(); // Initial update
 
+            // NotifyBefore validation: call server to compute cron interval and warn if <= 24h
+            const notifyInput = document.getElementById('notifyBefore');
+            const notifyWarning = document.getElementById('notify-warning');
+            const notifyInfo = document.getElementById('notify-info');
+
+            async function validateNotifyBefore() {
+                const val = notifyInput.value.trim();
+                notifyWarning.classList.add('hidden');
+                notifyWarning.classList.remove('text-red-600');
+                if (!val) return true; // nothing to validate
+
+                // Ask server for interval between next two runs
+                try {
+                    const resp = await authFetch(`${API_BASE}/api/cron/interval`, { method: 'POST', body: JSON.stringify({ cronExpression: cronInput.value }) });
+                    if (!resp || !resp.ok) {
+                        const err = resp ? await resp.json() : { error: 'Connection failed' };
+                        notifyWarning.textContent = `Could not validate schedule: ${err.error || 'Unknown error'}`;
+                        notifyWarning.classList.remove('hidden');
+                        notifyWarning.classList.add('text-yellow-600');
+                        return false;
+                    }
+                    const data = await resp.json();
+                    const intervalSec = data.intervalSeconds || 0;
+                    if (intervalSec <= 86400) {
+                        notifyWarning.textContent = 'Warning: This schedule recurs every 24 hours or less; pre-run notifications are intended for jobs recurring > 24h.';
+                        notifyWarning.classList.remove('hidden');
+                        notifyWarning.classList.add('text-red-600');
+                        return false;
+                    }
+                    // All good
+                    notifyWarning.classList.add('hidden');
+                    return true;
+                } catch (e) {
+                    notifyWarning.textContent = 'Validation error: ' + e.message;
+                    notifyWarning.classList.remove('hidden');
+                    notifyWarning.classList.add('text-yellow-600');
+                    return false;
+                }
+            }
+
+            if (notifyInput) {
+                notifyInput.addEventListener('input', () => {
+                    // Debounce lightly
+                    if (window._notifyTimer) clearTimeout(window._notifyTimer);
+                    window._notifyTimer = setTimeout(() => validateNotifyBefore(), 500);
+                });
+            }
+
             // Populate EnvVars section for edit (Feature 3)
             if (isEdit && jobData.envVars && Object.keys(jobData.envVars).length > 0) {
                 Object.entries(jobData.envVars).forEach(([key, value]) => {
@@ -665,6 +751,8 @@
                 skipCount,
                 // Add EnvVars to jobData
                 envVars: envVars, 
+                // NotifyBefore short string (e.g. "5m")
+                notifyBefore: form.notifyBefore ? form.notifyBefore.value.trim() : ''
             };
             
             let response;
@@ -680,10 +768,38 @@
             }
 
             try {
-                response = await authFetch(url, {
-                    method: method,
-                    body: JSON.stringify(jobData)
-                });
+                    // If notifyBefore present, validate schedule interval first
+                    if (jobData.notifyBefore) {
+                        const valid = await (async () => {
+                            try {
+                                const resp = await authFetch(`${API_BASE}/api/cron/interval`, { method: 'POST', body: JSON.stringify({ cronExpression }) });
+                                if (!resp || !resp.ok) {
+                                    const err = resp ? await resp.json() : { error: 'Connection failed' };
+                                    showMessage(err.error || 'Could not validate cron expression for notifyBefore.', 'error');
+                                    return false;
+                                }
+                                const data = await resp.json();
+                                if ((data.intervalSeconds || 0) <= 86400) {
+                                    showMessage('notifyBefore is only allowed for jobs recurring greater than 24 hours.', 'error');
+                                    return false;
+                                }
+                                return true;
+                            } catch (e) {
+                                showMessage('Validation error: ' + e.message, 'error');
+                                return false;
+                            }
+                        })();
+                        if (!valid) {
+                            submitButton.disabled = false;
+                            submitButton.innerHTML = originalButtonText;
+                            return;
+                        }
+                    }
+
+                    response = await authFetch(url, {
+                        method: method,
+                        body: JSON.stringify(jobData)
+                    });
 
                 const result = await response.json();
 
