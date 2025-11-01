@@ -37,7 +37,7 @@ var (
 // scheduledNotifications keeps track of the last NextRunAt we scheduled a notification for
 var (
 	scheduledNotifications = make(map[string]int64)
-	schedNotifMutex       sync.Mutex
+	schedNotifMutex        sync.Mutex
 )
 
 var (
@@ -55,12 +55,12 @@ type AuthResponse struct {
 
 // Job matches the Job structure in main.go, but only contains fields needed for display
 type Job struct {
-	ID             string `json:"id"`
-	Title          string `json:"title"`
-	CronExpression string `json:"cronExpression"`
-	SkipCount      int    `json:"skipCount"`
-	NextRunAt      int64  `json:"nextRunAt"`
-	NotifyBeforeSeconds int64 `json:"notifyBeforeSeconds,omitempty"`
+	ID                  string `json:"id"`
+	Title               string `json:"title"`
+	CronExpression      string `json:"cronExpression"`
+	SkipCount           int    `json:"skipCount"`
+	NextRunAt           int64  `json:"nextRunAt"`
+	NotifyBeforeSeconds int64  `json:"notifyBeforeSeconds,omitempty"`
 }
 
 // SkipResponse matches the skip handler response in main.go
@@ -402,23 +402,24 @@ func pollAndScheduleNotifications(bot *tgbotapi.BotAPI) {
 	defer ticker.Stop()
 
 	for {
-		// Fetch jobs
+		<-ticker.C
+
 		resp, err := apiCall("GET", "/api/jobs/", nil)
 		if err != nil {
 			log.Printf("[NOTIFY] failed to fetch jobs: %v", err)
-			goto wait
+			continue
 		}
 		if resp.StatusCode != http.StatusOK {
-			log.Printf("[NOTIFY] API returned non-OK status: %d", resp.StatusCode)
+			log.Printf("[NOTIFY] API returned non-OK: %d", resp.StatusCode)
 			resp.Body.Close()
-			goto wait
+			continue
 		}
 
 		var jobs []Job
 		if err := json.NewDecoder(resp.Body).Decode(&jobs); err != nil {
 			resp.Body.Close()
-			log.Printf("[NOTIFY] failed to decode jobs: %v", err)
-			goto wait
+			log.Printf("[NOTIFY] decode failed: %v", err)
+			continue
 		}
 		resp.Body.Close()
 
@@ -428,49 +429,51 @@ func pollAndScheduleNotifications(bot *tgbotapi.BotAPI) {
 				continue
 			}
 
+			// 🕒 Use correct unit
 			nextRun := time.Unix(0, job.NextRunAt*int64(time.Millisecond))
+			// OR: nextRun := time.Unix(job.NextRunAt, 0)
+
 			notifyAt := nextRun.Add(-time.Duration(job.NotifyBeforeSeconds) * time.Second)
 
 			schedNotifMutex.Lock()
 			lastScheduledNext := scheduledNotifications[job.ID]
 			schedNotifMutex.Unlock()
 
-			// If we've already scheduled for this next run, skip
 			if lastScheduledNext == job.NextRunAt {
 				continue
 			}
 
-			// If notify time is past but next run still in future, send immediately
-			if now.After(notifyAt) && now.Before(nextRun) {
-				go func(j Job) {
-					msg := fmt.Sprintf("⏰ Reminder: Job `%s` is scheduled to run at %s (in %s).", j.ID, nextRun.Format("Jan 2 2006 15:04:05 MST"), time.Until(nextRun).Truncate(time.Second))
-					sendMarkdown(bot, authorizedUserID, msg)
-				}(job)
+			log.Printf("[NOTIFY] job=%s now=%v notifyAt=%v nextRun=%v",
+				job.ID, now, notifyAt, nextRun)
 
+			if now.After(notifyAt) && now.Before(nextRun) {
 				schedNotifMutex.Lock()
 				scheduledNotifications[job.ID] = job.NextRunAt
 				schedNotifMutex.Unlock()
+
+				go func(j Job) {
+					msg := fmt.Sprintf("⏰ Reminder: Job `%s` is scheduled to run at %s (in %s).",
+						j.ID, nextRun.Format("15:04:05"), time.Until(nextRun).Truncate(time.Second))
+					sendMarkdown(bot, authorizedUserID, msg)
+				}(job)
 				continue
 			}
 
-			// If notify time is in future, schedule it
 			if notifyAt.After(now) {
 				delay := time.Until(notifyAt)
-				// Capture job variable
+				schedNotifMutex.Lock()
+				scheduledNotifications[job.ID] = job.NextRunAt
+				schedNotifMutex.Unlock()
+
+				log.Printf("[NOTIFY] scheduling job=%s in %v", job.ID, delay)
 				j := job
 				time.AfterFunc(delay, func() {
-					msg := fmt.Sprintf("⏰ Reminder: Job `%s` will run at %s (in %s).", j.ID, nextRun.Format("Jan 2 2006 15:04:05 MST"), time.Until(nextRun).Truncate(time.Second))
+					msg := fmt.Sprintf("⏰ Reminder: Job `%s` will run at %s (in %s).",
+						j.ID, nextRun.Format("15:04:05"), time.Until(nextRun).Truncate(time.Second))
 					sendMarkdown(bot, authorizedUserID, msg)
-
-					schedNotifMutex.Lock()
-					scheduledNotifications[j.ID] = j.NextRunAt
-					schedNotifMutex.Unlock()
 				})
 			}
 		}
-
-	wait:
-		<-ticker.C
 	}
 }
 

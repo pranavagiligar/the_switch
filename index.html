@@ -678,12 +678,13 @@
                     }
                     const data = await resp.json();
                     const intervalSec = data.intervalSeconds || 0;
-                    if (intervalSec <= 86400) {
-                        notifyWarning.textContent = 'Warning: This schedule recurs every 24 hours or less; pre-run notifications are intended for jobs recurring > 24h.';
-                        notifyWarning.classList.remove('hidden');
-                        notifyWarning.classList.add('text-red-600');
-                        return false;
-                    }
+                    // TODO: Uncomment this if block to dont alow notification before 24 hour
+                    // if (intervalSec <= 86400) {
+                    //     notifyWarning.textContent = 'Warning: This schedule recurs every 24 hours or less; pre-run notifications are intended for jobs recurring > 24h.';
+                    //     notifyWarning.classList.remove('hidden');
+                    //     notifyWarning.classList.add('text-red-600');
+                    //     return false;
+                    // }
                     // All good
                     notifyWarning.classList.add('hidden');
                     return true;
@@ -779,10 +780,11 @@
                                     return false;
                                 }
                                 const data = await resp.json();
-                                if ((data.intervalSeconds || 0) <= 86400) {
-                                    showMessage('notifyBefore is only allowed for jobs recurring greater than 24 hours.', 'error');
-                                    return false;
-                                }
+                                // TODO: Uncomment this if block to dont alow notification before 24 hour
+                                // if ((data.intervalSeconds || 0) <= 86400) {
+                                //     showMessage('notifyBefore is only allowed for jobs recurring greater than 24 hours.', 'error');
+                                //     return false;
+                                // }
                                 return true;
                             } catch (e) {
                                 showMessage('Validation error: ' + e.message, 'error');

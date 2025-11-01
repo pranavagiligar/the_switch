@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
-	"strconv"
 	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -413,7 +413,7 @@ func initializeDB(dbPath, adminPassword string) error {
 	var err error
 
 	// Open the database for persistence.
-	db, err = sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
+	db, err = sql.Open("sqlite3", dbPath+"?_foreign_keys=on&busy_timeout=10000&_journal_mode=WAL")
 	if err != nil {
 		return fmt.Errorf("error opening persistent database at %s: %w", dbPath, err)
 	}
@@ -609,9 +609,9 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 	for rows.Next() {
 		var job Job
 		var id int
-	var envVarsJSON string // Read envVars (Feature 3)
-	var notifyBeforeSec int64
-	err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &envVarsJSON, &notifyBeforeSec)
+		var envVarsJSON string // Read envVars (Feature 3)
+		var notifyBeforeSec int64
+		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &envVarsJSON, &notifyBeforeSec)
 		if err != nil {
 			log.Printf("[ERROR] Error scanning job row for API: %v", err)
 			continue
@@ -620,7 +620,7 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 
 		// Deserialize envVars (Feature 3)
 		job.EnvVars, _ = jsonToMap(envVarsJSON)
-	job.NotifyBeforeSeconds = notifyBeforeSec
+		job.NotifyBeforeSeconds = notifyBeforeSec
 
 		// Calculate Next Run At
 		schedule, parseErr := parser.Parse(job.CronExpression)
@@ -649,7 +649,7 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 // cronIntervalHandler accepts POST { cronExpression: string }
 // and returns the interval in seconds between the next two scheduled runs.
 func cronIntervalHandler(w http.ResponseWriter, r *http.Request) {
-	var payload struct{
+	var payload struct {
 		CronExpression string `json:"cronExpression"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -720,10 +720,11 @@ func createJobHandler(w http.ResponseWriter, r *http.Request) {
 		next1 := sched.Next(now)
 		next2 := sched.Next(next1)
 		interval := next2.Sub(next1)
-		if interval <= 24*time.Hour {
-			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore is intended for jobs with interval > 24h (recurring jobs greater than a day)"})
-			return
-		}
+		// TODO: Uncomment this if block to dont alow notification before 24
+		// if interval <= 24*time.Hour {
+		// 	respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore is intended for jobs with interval > 24h (recurring jobs greater than a day)"})
+		// 	return
+		// }
 
 		// Ensure notifyBefore is less than interval
 		if dur >= interval {
@@ -815,10 +816,11 @@ func updateJobHandler(w http.ResponseWriter, r *http.Request) {
 		next1 := sched.Next(now)
 		next2 := sched.Next(next1)
 		interval := next2.Sub(next1)
-		if interval <= 24*time.Hour {
-			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore is intended for jobs with interval > 24h (recurring jobs greater than a day)"})
-			return
-		}
+		// TODO: Uncomment this if block to dont alow notification before 24 hour
+		// if interval <= 24*time.Hour {
+		// 	respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore is intended for jobs with interval > 24h (recurring jobs greater than a day)"})
+		// 	return
+		// }
 
 		// Ensure notifyBefore is less than interval
 		if dur >= interval {
