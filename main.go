@@ -33,16 +33,15 @@ var buildTime = "unknown"
 
 // Job defines the structure for a scheduled job.
 type Job struct {
-	ID             string `json:"id"`
-	Title          string `json:"title"`
-	Description    string `json:"description"`
-	CronExpression string `json:"cronExpression"`
-	ScriptContent  string `json:"scriptContent"`
-	SkipCount      int    `json:"skipCount"`
-	CreatedAt      int64  `json:"createdAt"`
-	NextRunAt      int64  `json:"nextRunAt"` // Unix milliseconds timestamp for the next run
-	// NEW: For Job-Specific Environment Variables (Feature 3)
-	EnvVars map[string]string `json:"envVars,omitempty"` // Stored as JSON string in DB
+	ID             string            `json:"id"`
+	Title          string            `json:"title"`
+	Description    string            `json:"description"`
+	CronExpression string            `json:"cronExpression"`
+	ScriptContent  string            `json:"scriptContent"`
+	SkipCount      int               `json:"skipCount"`
+	CreatedAt      int64             `json:"createdAt"`
+	NextRunAt      int64             `json:"nextRunAt"`         // Unix milliseconds timestamp for the next run
+	EnvVars        map[string]string `json:"envVars,omitempty"` // Stored as JSON string in DB
 	// NotifyBeforeSeconds: number of seconds before the scheduled run to notify (0 = disabled)
 	NotifyBeforeSeconds int64 `json:"notifyBeforeSeconds,omitempty"`
 	// NotifyBefore: optional human-friendly input (e.g. "5m", "2h"). Accepted on create/update.
@@ -440,9 +439,7 @@ func initializeDB(dbPath, adminPassword string) error {
 			scriptContent TEXT NOT NULL,
 			skipCount INTEGER DEFAULT 0,
 			createdAt INTEGER NOT NULL,
-			-- NEW: Environment variables stored as JSON string
 			envVars TEXT DEFAULT '{}',
-			-- Number of seconds before next run to notify (0 = disabled)
 			notifyBeforeSeconds INTEGER DEFAULT 0
 		);
 	`)

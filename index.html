@@ -513,9 +513,9 @@
             // Use crypto.randomUUID for unique key in the DOM, not for API payload
             const uniqueId = crypto.randomUUID(); 
             div.innerHTML = `
-                <input type="text" id="env-key-${uniqueId}" name="env-key" placeholder="KEY (e.g., API_TOKEN)" value="${escapeHtml(key)}" class="input-style flex-1 bg-white" required>
+                <input type="text" id="env-key-${uniqueId}" name="env-key" placeholder="KEY (e.g., API_TOKEN)" value="${escapeHtml(key)}" class="input-style flex-1 bg-white">
                 <span class="text-xl font-bold text-gray-400">=</span>
-                <input type="text" id="env-value-${uniqueId}" name="env-value" placeholder="VALUE (e.g., xyz123)" value="${escapeHtml(value)}" class="input-style flex-1 bg-white" required>
+                <input type="text" id="env-value-${uniqueId}" name="env-value" placeholder="VALUE (e.g., xyz123)" value="${escapeHtml(value)}" class="input-style flex-1 bg-white">
                 <button type="button" onclick="this.parentNode.remove()" title="Remove Variable" class="p-2 text-red-500 hover:text-red-700 transition rounded-full hover:bg-red-50">
                     ${renderIcon('x', 'w-4 h-4')}
                 </button>
@@ -573,35 +573,35 @@
                                 <input type="text" id="cronExpression" name="cronExpression" value="${escapeHtml(jobData.cronExpression)}" class="mt-1 input-style font-mono text-base" required>
                                 <p id="cron-description" class="text-sm mt-2 text-indigo-600 italic font-semibold flex items-center">${renderIcon('calendar-search', 'w-4 h-4 mr-1')}</p>
                             </div>
-                                            <div class="mb-4">
-                                                <div class="flex items-center space-x-2">
-                                                    <label for="notifyBefore" class="block text-sm font-medium text-gray-700">Pre-run Notification (optional)</label>
-                                                    <!-- Tooltip trigger -->
-                                                    <div class="relative group inline-block" aria-hidden="true">
-                                                        <button type="button" class="p-1 text-indigo-500 hover:text-indigo-700 rounded-full" tabindex="-1" aria-label="Notify format help">
-                                                            ${renderIcon('info', 'w-4 h-4')}
-                                                        </button>
-                                                        <!-- Tooltip box -->
-                                                        <div class="pointer-events-none absolute left-6 top-0 z-50 hidden group-hover:block group-focus:block w-72">
-                                                            <div class="bg-gray-800 text-white text-xs rounded-md p-3 shadow-lg">
-                                                                <div class="font-semibold mb-1">Allowed formats</div>
-                                                                <div class="text-[13px] leading-snug">Use a number followed by a unit: <strong>s</strong> (seconds), <strong>m</strong> (minutes), <strong>h</strong> (hours), <strong>d</strong> (days). You may combine units, for example:</div>
-                                                                <ul class="mt-2 list-disc list-inside text-[13px]">
-                                                                    <li><code class="bg-gray-700 px-1 rounded">30s</code> — 30 seconds</li>
-                                                                    <li><code class="bg-gray-700 px-1 rounded">5m</code> — 5 minutes</li>
-                                                                    <li><code class="bg-gray-700 px-1 rounded">2h</code> — 2 hours</li>
-                                                                    <li><code class="bg-gray-700 px-1 rounded">1d</code> — 1 day</li>
-                                                                    <li><code class="bg-gray-700 px-1 rounded">1d2h30m</code> — combined (1 day, 2 hours, 30 minutes)</li>
-                                                                </ul>
-                                                                <div class="mt-2 text-yellow-200 text-[12px]">Note: Intended for jobs that recur &gt; 24 hours; the server will validate and may reject shorter schedules.</div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <input type="text" id="notifyBefore" name="notifyBefore" placeholder="e.g. 5m, 1h, 1d or 1d2h30m" value="${escapeHtml(formatSecondsToShort(jobData.notifyBeforeSeconds || 0))}" class="mt-1 input-style" />
-                                                <p id="notify-info" class="text-xs text-gray-500 mt-1">If set, the bot will send a Telegram reminder <strong>before</strong> the job runs.</p>
-                                                <p id="notify-warning" class="text-xs mt-1 hidden"></p>
+                            <div class="mb-4">
+                                <div class="flex items-center space-x-2">
+                                    <label for="notifyBefore" class="block text-sm font-medium text-gray-700">Pre-run Notification (optional)</label>
+                                    <!-- Tooltip trigger -->
+                                    <div class="relative group inline-block" aria-hidden="true">
+                                        <button type="button" class="p-1 text-indigo-500 hover:text-indigo-700 rounded-full" tabindex="-1" aria-label="Notify format help">
+                                            ${renderIcon('info', 'w-4 h-4')}
+                                        </button>
+                                        <!-- Tooltip box -->
+                                        <div class="pointer-events-none absolute left-6 top-0 z-50 hidden group-hover:block group-focus:block w-72">
+                                            <div class="bg-gray-800 text-white text-xs rounded-md p-3 shadow-lg">
+                                                <div class="font-semibold mb-1">Allowed formats</div>
+                                                <div class="text-[13px] leading-snug">Use a number followed by a unit: <strong>s</strong> (seconds), <strong>m</strong> (minutes), <strong>h</strong> (hours), <strong>d</strong> (days). You may combine units, for example:</div>
+                                                <ul class="mt-2 list-disc list-inside text-[13px]">
+                                                    <li><code class="bg-gray-700 px-1 rounded">30s</code> — 30 seconds</li>
+                                                    <li><code class="bg-gray-700 px-1 rounded">5m</code> — 5 minutes</li>
+                                                    <li><code class="bg-gray-700 px-1 rounded">2h</code> — 2 hours</li>
+                                                    <li><code class="bg-gray-700 px-1 rounded">1d</code> — 1 day</li>
+                                                    <li><code class="bg-gray-700 px-1 rounded">1d2h30m</code> — combined (1 day, 2 hours, 30 minutes)</li>
+                                                </ul>
+                                                <div class="mt-2 text-yellow-200 text-[12px]">Note: Intended for jobs that recur &gt; 24 hours; the server will validate and may reject shorter schedules.</div>
                                             </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <input type="text" id="notifyBefore" name="notifyBefore" placeholder="e.g. 5m, 1h, 1d or 1d2h30m" value="${escapeHtml(formatSecondsToShort(jobData.notifyBeforeSeconds || 0))}" class="mt-1 input-style" />
+                                <p id="notify-info" class="text-xs text-gray-500 mt-1">If set, the bot will send a Telegram reminder <strong>before</strong> the job runs.</p>
+                                <p id="notify-warning" class="text-xs mt-1 hidden"></p>
+                            </div>
                         </div>
 
                         <div class="mb-8 p-4 border rounded-xl bg-gray-50">
@@ -787,39 +787,39 @@
             }
 
             try {
-                    // If notifyBefore present, validate schedule interval first
-                    if (jobData.notifyBefore) {
-                        const valid = await (async () => {
-                            try {
-                                const resp = await authFetch(`${API_BASE}/api/cron/interval`, { method: 'POST', body: JSON.stringify({ cronExpression }) });
-                                if (!resp || !resp.ok) {
-                                    const err = resp ? await resp.json() : { error: 'Connection failed' };
-                                    showMessage(err.error || 'Could not validate cron expression for notifyBefore.', 'error');
-                                    return false;
-                                }
-                                const data = await resp.json();
-                                // TODO: Uncomment this if block to dont alow notification before 24 hour
-                                // if ((data.intervalSeconds || 0) <= 86400) {
-                                //     showMessage('notifyBefore is only allowed for jobs recurring greater than 24 hours.', 'error');
-                                //     return false;
-                                // }
-                                return true;
-                            } catch (e) {
-                                showMessage('Validation error: ' + e.message, 'error');
+                // If notifyBefore present, validate schedule interval first
+                if (jobData.notifyBefore) {
+                    const valid = await (async () => {
+                        try {
+                            const resp = await authFetch(`${API_BASE}/api/cron/interval`, { method: 'POST', body: JSON.stringify({ cronExpression }) });
+                            if (!resp || !resp.ok) {
+                                const err = resp ? await resp.json() : { error: 'Connection failed' };
+                                showMessage(err.error || 'Could not validate cron expression for notifyBefore.', 'error');
                                 return false;
                             }
-                        })();
-                        if (!valid) {
-                            submitButton.disabled = false;
-                            submitButton.innerHTML = originalButtonText;
-                            return;
+                            const data = await resp.json();
+                            // TODO: Uncomment this if block to dont alow notification before 24 hour
+                            // if ((data.intervalSeconds || 0) <= 86400) {
+                            //     showMessage('notifyBefore is only allowed for jobs recurring greater than 24 hours.', 'error');
+                            //     return false;
+                            // }
+                            return true;
+                        } catch (e) {
+                            showMessage('Validation error: ' + e.message, 'error');
+                            return false;
                         }
+                    })();
+                    if (!valid) {
+                        submitButton.disabled = false;
+                        submitButton.innerHTML = originalButtonText;
+                        return;
                     }
+                }
 
-                    response = await authFetch(url, {
-                        method: method,
-                        body: JSON.stringify(jobData)
-                    });
+                response = await authFetch(url, {
+                    method: method,
+                    body: JSON.stringify(jobData)
+                });
 
                 const result = await response.json();
 
