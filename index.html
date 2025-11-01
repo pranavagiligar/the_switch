@@ -334,6 +334,7 @@
                 let nextRunTimeDisplay = '<span class="text-gray-400">N/A</span>';
                 let cronWarning = '';
                 let nextRunColor = 'text-green-600';
+                let notifyHtml = '';
 
                 if (job.nextRunAt > 0) {
                     try {
@@ -350,6 +351,22 @@
                     nextRunTimeDisplay = '<span class="text-red-500 font-bold">Invalid CRON</span>';
                     cronWarning = `<div class="text-xs text-red-500 flex items-center mt-2 p-2 bg-red-50 rounded-lg">${renderIcon('alert-triangle', 'w-4 h-4 mr-1')} Invalid CRON expression.</div>`;
                     nextRunColor = 'text-red-500';
+                }
+
+                // Show pre-run notification info if configured (job.notifyBeforeSeconds)
+                if (job.notifyBeforeSeconds && job.notifyBeforeSeconds > 0) {
+                    try {
+                        const nbShort = formatSecondsToShort(job.notifyBeforeSeconds);
+                        if (job.nextRunAt && job.nextRunAt > 0) {
+                            const notifyAt = new Date(job.nextRunAt - job.notifyBeforeSeconds * 1000).toLocaleString();
+                            notifyHtml = `<div class="mt-3 text-sm text-indigo-700 flex items-center">${renderIcon('bell', 'w-4 h-4 mr-2 text-indigo-500')}Notify Before: <span class="font-semibold ml-2">${escapeHtml(nbShort)}</span> — will notify at <span class="ml-2 font-mono bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded-md text-xs">${escapeHtml(notifyAt)}</span></div>`;
+                        } else {
+                            notifyHtml = `<div class="mt-3 text-sm text-indigo-700 flex items-center">${renderIcon('bell', 'w-4 h-4 mr-2 text-indigo-500')}Notify Before: <span class="font-semibold ml-2">${escapeHtml(nbShort)}</span></div>`;
+                        }
+                    } catch (e) {
+                        // If anything goes wrong, don't block rendering — show a minimal label
+                        notifyHtml = `<div class="mt-3 text-sm text-gray-500">${renderIcon('bell', 'w-4 h-4 mr-2 text-gray-400')}Notify Before: configured</div>`;
+                    }
                 }
 
                 html += `
@@ -392,6 +409,7 @@
                             </div>
                         </div> 
                         ${cronWarning}
+                        ${notifyHtml}
 
                         <details class="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
                             <summary class="font-bold cursor-pointer text-sm flex items-center text-gray-700 hover:text-indigo-600 transition">
