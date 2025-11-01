@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,16 +33,19 @@ var buildTime = "unknown"
 
 // Job defines the structure for a scheduled job.
 type Job struct {
-	ID             string `json:"id"`
-	Title          string `json:"title"`
-	Description    string `json:"description"`
-	CronExpression string `json:"cronExpression"`
-	ScriptContent  string `json:"scriptContent"`
-	SkipCount      int    `json:"skipCount"`
-	CreatedAt      int64  `json:"createdAt"`
-	NextRunAt      int64  `json:"nextRunAt"` // Unix milliseconds timestamp for the next run
-	// NEW: For Job-Specific Environment Variables (Feature 3)
-	EnvVars map[string]string `json:"envVars,omitempty"` // Stored as JSON string in DB
+	ID             string            `json:"id"`
+	Title          string            `json:"title"`
+	Description    string            `json:"description"`
+	CronExpression string            `json:"cronExpression"`
+	ScriptContent  string            `json:"scriptContent"`
+	SkipCount      int               `json:"skipCount"`
+	CreatedAt      int64             `json:"createdAt"`
+	NextRunAt      int64             `json:"nextRunAt"`         // Unix milliseconds timestamp for the next run
+	EnvVars        map[string]string `json:"envVars,omitempty"` // Stored as JSON string in DB
+	// NotifyBeforeSeconds: number of seconds before the scheduled run to notify (0 = disabled)
+	NotifyBeforeSeconds int64 `json:"notifyBeforeSeconds,omitempty"`
+	// NotifyBefore: optional human-friendly input (e.g. "5m", "2h"). Accepted on create/update.
+	NotifyBefore string `json:"notifyBefore,omitempty"`
 }
 
 // NEW: JobExecution defines the structure for an execution log entry (Feature 1)
@@ -107,6 +112,56 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(response)
+}
+
+// parseShortDuration parses user-friendly durations like "5m", "2h", "1d", "30s".
+// If an empty string is passed, returns 0, nil.
+// parseShortDuration parses user-friendly durations like "5m", "2h", "1d", "30s",
+// and combined forms like "1d2h30m". If an empty string is passed, returns 0, nil.
+func parseShortDuration(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, nil
+	}
+
+	// Regex to capture groups of number+unit (s,m,h,d), case-insensitive
+	re := regexp.MustCompile(`(?i)(\d+)([smhd])`)
+	matches := re.FindAllStringSubmatch(s, -1)
+	if len(matches) == 0 {
+		// Maybe it's a bare number (seconds)
+		if v, err := strconv.ParseInt(s, 10, 64); err == nil {
+			return time.Duration(v) * time.Second, nil
+		}
+		return 0, fmt.Errorf("invalid duration format")
+	}
+
+	var total time.Duration
+	for _, m := range matches {
+		if len(m) < 3 {
+			continue
+		}
+		vStr := m[1]
+		unit := strings.ToLower(m[2])
+		v, err := strconv.ParseInt(vStr, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration number: %w", err)
+		}
+
+		switch unit {
+		case "s":
+			total += time.Duration(v) * time.Second
+		case "m":
+			total += time.Duration(v) * time.Minute
+		case "h":
+			total += time.Duration(v) * time.Hour
+		case "d":
+			total += time.Duration(v) * 24 * time.Hour
+		default:
+			return 0, fmt.Errorf("unknown duration unit: %s", unit)
+		}
+	}
+
+	return total, nil
 }
 
 // getTokenFromHeader extracts the JWT from the Authorization header
@@ -308,7 +363,7 @@ func startScheduler() {
 
 	// 3. Fetch all jobs from the database (including envVars)
 	rows, err := db.Query(`
-		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, envVars
+		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, envVars, notifyBeforeSeconds
 		FROM jobs;
 	`)
 	if err != nil {
@@ -323,8 +378,9 @@ func startScheduler() {
 		var job Job
 		var id int
 		var envVarsJSON string // Scan EnvVars JSON string (Feature 3)
+		var notifyBeforeSec int64
 
-		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &envVarsJSON)
+		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &envVarsJSON, &notifyBeforeSec)
 		if err != nil {
 			log.Printf("[ERROR] Error scanning job row for scheduling: %v", err)
 			continue
@@ -333,6 +389,7 @@ func startScheduler() {
 
 		// Deserialize envVars (Feature 3)
 		job.EnvVars, _ = jsonToMap(envVarsJSON)
+		job.NotifyBeforeSeconds = notifyBeforeSec
 
 		// Add the job to cron
 		_, err = jobCron.AddFunc(job.CronExpression, runJob(job))
@@ -355,7 +412,7 @@ func initializeDB(dbPath, adminPassword string) error {
 	var err error
 
 	// Open the database for persistence.
-	db, err = sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
+	db, err = sql.Open("sqlite3", dbPath+"?_foreign_keys=on&busy_timeout=10000&_journal_mode=WAL")
 	if err != nil {
 		return fmt.Errorf("error opening persistent database at %s: %w", dbPath, err)
 	}
@@ -382,12 +439,44 @@ func initializeDB(dbPath, adminPassword string) error {
 			scriptContent TEXT NOT NULL,
 			skipCount INTEGER DEFAULT 0,
 			createdAt INTEGER NOT NULL,
-			-- NEW: Environment variables stored as JSON string
-			envVars TEXT DEFAULT '{}' 
+			envVars TEXT DEFAULT '{}',
+			notifyBeforeSeconds INTEGER DEFAULT 0
 		);
 	`)
 	if err != nil {
 		return fmt.Errorf("error creating jobs table: %w", err)
+	}
+
+	// Run a lightweight migration for existing DBs: ensure notifyBeforeSeconds column exists
+	// SQLite supports ALTER TABLE ADD COLUMN; check pragma table_info
+	rows, merr := db.Query("PRAGMA table_info(jobs);")
+	if merr == nil {
+		defer rows.Close()
+		found := false
+		for rows.Next() {
+			var cid int
+			var name string
+			var ctype string
+			var notnull int
+			var dfltValue sql.NullString
+			var pk int
+			if scanErr := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); scanErr == nil {
+				if name == "notifyBeforeSeconds" {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			_, aerr := db.Exec("ALTER TABLE jobs ADD COLUMN notifyBeforeSeconds INTEGER DEFAULT 0;")
+			if aerr != nil {
+				log.Printf("[MIGRATION] Failed to add notifyBeforeSeconds column: %v", aerr)
+			} else {
+				log.Printf("[MIGRATION] notifyBeforeSeconds column added to jobs table")
+			}
+		}
+	} else {
+		log.Printf("[MIGRATION] Could not introspect jobs table: %v", merr)
 	}
 
 	// NEW: Create Job Executions table (Feature 1)
@@ -499,7 +588,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 // getJobsHandler is updated to fetch envVars and calculate NextRunAt
 func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 	rows, err := db.Query(`
-		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, envVars
+		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, envVars, notifyBeforeSeconds
 		FROM jobs ORDER BY createdAt DESC;
 	`)
 	if err != nil {
@@ -518,7 +607,8 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 		var job Job
 		var id int
 		var envVarsJSON string // Read envVars (Feature 3)
-		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &envVarsJSON)
+		var notifyBeforeSec int64
+		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &envVarsJSON, &notifyBeforeSec)
 		if err != nil {
 			log.Printf("[ERROR] Error scanning job row for API: %v", err)
 			continue
@@ -527,6 +617,7 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 
 		// Deserialize envVars (Feature 3)
 		job.EnvVars, _ = jsonToMap(envVarsJSON)
+		job.NotifyBeforeSeconds = notifyBeforeSec
 
 		// Calculate Next Run At
 		schedule, parseErr := parser.Parse(job.CronExpression)
@@ -550,6 +641,34 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	respondJSON(w, http.StatusOK, jobList)
+}
+
+// cronIntervalHandler accepts POST { cronExpression: string }
+// and returns the interval in seconds between the next two scheduled runs.
+func cronIntervalHandler(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		CronExpression string `json:"cronExpression"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid payload"})
+		return
+	}
+
+	cronMutex.Lock()
+	parser := jobParser
+	cronMutex.Unlock()
+
+	sched, err := parser.Parse(payload.CronExpression)
+	if err != nil {
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid CRON expression: " + err.Error()})
+		return
+	}
+
+	now := time.Now()
+	next1 := sched.Next(now)
+	next2 := sched.Next(next1)
+	interval := next2.Sub(next1)
+	respondJSON(w, http.StatusOK, map[string]int64{"intervalSeconds": int64(interval.Seconds())})
 }
 
 // createJobHandler is updated to handle envVars
@@ -576,12 +695,49 @@ func createJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 2.b Validate notifyBefore (if provided). Only allowed for schedules with interval > 24h
+	var notifyBeforeSec int64 = 0
+	if strings.TrimSpace(job.NotifyBefore) != "" {
+		// Parse human duration
+		dur, perr := parseShortDuration(job.NotifyBefore)
+		if perr != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid notifyBefore value: " + perr.Error()})
+			return
+		}
+		if dur <= 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore must be greater than 0"})
+			return
+		}
+
+		// Determine schedule interval by parsing cron and taking difference between two consecutive runs
+		cronMutex.Lock()
+		sched, _ := jobParser.Parse(job.CronExpression)
+		cronMutex.Unlock()
+		now := time.Now()
+		next1 := sched.Next(now)
+		next2 := sched.Next(next1)
+		interval := next2.Sub(next1)
+		// TODO: Uncomment this if block to dont alow notification before 24
+		// if interval <= 24*time.Hour {
+		// 	respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore is intended for jobs with interval > 24h (recurring jobs greater than a day)"})
+		// 	return
+		// }
+
+		// Ensure notifyBefore is less than interval
+		if dur >= interval {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore must be smaller than the job interval"})
+			return
+		}
+
+		notifyBeforeSec = int64(dur.Seconds())
+	}
+
 	// 3. Insert into DB (updated to include envVars)
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	res, err := db.Exec(`
-		INSERT INTO jobs (title, description, cronExpression, scriptContent, skipCount, createdAt, envVars) 
-		VALUES (?, ?, ?, ?, ?, ?, ?);
-	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, 0, now, envVarsJSON) // Added envVars
+		INSERT INTO jobs (title, description, cronExpression, scriptContent, skipCount, createdAt, envVars, notifyBeforeSeconds) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, 0, now, envVarsJSON, notifyBeforeSec) // Added envVars and notifyBefore
 
 	if err != nil {
 		log.Printf("[DB ERROR] Failed to create job: %v", err)
@@ -635,11 +791,48 @@ func updateJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 2.b Validate notifyBefore (if provided). Only allowed for schedules with interval > 24h
+	var notifyBeforeSec int64 = 0
+	if strings.TrimSpace(job.NotifyBefore) != "" {
+		// Parse human duration
+		dur, perr := parseShortDuration(job.NotifyBefore)
+		if perr != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid notifyBefore value: " + perr.Error()})
+			return
+		}
+		if dur <= 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore must be greater than 0"})
+			return
+		}
+
+		// Determine schedule interval by parsing cron and taking difference between two consecutive runs
+		cronMutex.Lock()
+		sched, _ := jobParser.Parse(job.CronExpression)
+		cronMutex.Unlock()
+		now := time.Now()
+		next1 := sched.Next(now)
+		next2 := sched.Next(next1)
+		interval := next2.Sub(next1)
+		// TODO: Uncomment this if block to dont alow notification before 24 hour
+		// if interval <= 24*time.Hour {
+		// 	respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore is intended for jobs with interval > 24h (recurring jobs greater than a day)"})
+		// 	return
+		// }
+
+		// Ensure notifyBefore is less than interval
+		if dur >= interval {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "notifyBefore must be smaller than the job interval"})
+			return
+		}
+
+		notifyBeforeSec = int64(dur.Seconds())
+	}
+
 	// 3. Update DB (updated to include envVars)
 	res, err := db.Exec(`
-		UPDATE jobs SET title = ?, description = ?, cronExpression = ?, scriptContent = ?, skipCount = ?, envVars = ?
+		UPDATE jobs SET title = ?, description = ?, cronExpression = ?, scriptContent = ?, skipCount = ?, envVars = ?, notifyBeforeSeconds = ?
 		WHERE id = ?;
-	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, job.SkipCount, envVarsJSON, numericID) // Added envVars
+	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, job.SkipCount, envVarsJSON, notifyBeforeSec, numericID) // Added envVars and notifyBefore
 
 	if err != nil {
 		log.Printf("[DB ERROR] Failed to update job %s: %v", jobIDStr, err)
@@ -903,6 +1096,16 @@ func main() {
 	})
 
 	// Apply authMiddleware to the API routes
+
+	// Add cron interval endpoint for UI validation
+	apiMux.HandleFunc("/api/cron/interval", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			cronIntervalHandler(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	})
+
 	mux.Handle("/api/", authMiddleware(apiMux.ServeHTTP))
 
 	// Wrap the main router with the CORS middleware
