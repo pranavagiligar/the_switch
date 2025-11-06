@@ -956,10 +956,31 @@
 
         // --- Initialization ---
 
+        // Fetch build info from the server and populate footer
+        async function fetchAndPopulateBuildInfo() {
+            try {
+                const resp = await fetch(`${window.location.origin}/buildinfo`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                const verEl = document.getElementById('build-version');
+                const revEl = document.getElementById('build-revision');
+                const timeEl = document.getElementById('build-time');
+                if (verEl) verEl.textContent = data.version || 'dev';
+                if (revEl) revEl.textContent = data.commit || 'none';
+                if (timeEl) timeEl.textContent = data.buildTime || 'unknown';
+            } catch (e) {
+                // Silent fail — build info is non-critical
+                console.debug('Could not fetch build info:', e);
+            }
+        }
+
         // Check auth status on load and render the correct view
         window.onload = function() {
             // Need to set the global API base for the bot.go to work in the canvas environment
             window.API_BASE = window.location.origin;
+
+            // Populate build/version info in the footer (non-blocking)
+            fetchAndPopulateBuildInfo();
 
             if (authToken) {
                 renderDashboard();
@@ -969,5 +990,18 @@
         };
 
     </script>
+
+    <!-- Footer with build info -->
+    <footer class="w-full bg-white border-t border-gray-100 mt-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-8 py-3 text-sm text-gray-500 flex justify-between items-center">
+            <div class="text-xs text-gray-400">© TheSwitch</div>
+            <div class="flex space-x-4 items-center">
+                <div class="text-xs text-gray-600">Version: <span id="build-version" class="font-mono text-sm">dev</span></div>
+                <div class="text-xs text-gray-600">Revision: <span id="build-revision" class="font-mono text-sm">none</span></div>
+                <div class="text-xs text-gray-600">Built: <span id="build-time" class="font-mono text-sm">unknown</span></div>
+            </div>
+        </div>
+    </footer>
+
 </body>
 </html>

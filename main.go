@@ -671,6 +671,19 @@ func cronIntervalHandler(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]int64{"intervalSeconds": int64(interval.Seconds())})
 }
 
+// buildInfoHandler exposes build metadata (version, commit, buildTime) to the frontend
+func buildInfoHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]string{
+		"version":   version,
+		"commit":    commit,
+		"buildTime": buildTime,
+	})
+}
+
 // createJobHandler is updated to handle envVars
 func createJobHandler(w http.ResponseWriter, r *http.Request) {
 	var job Job
@@ -1032,6 +1045,8 @@ func main() {
 	// Serve index.html and static files (no auth required)
 	mux.HandleFunc("/", serveIndexFile)
 	mux.HandleFunc("/login", loginHandler)
+	// Expose build metadata for frontend footer
+	mux.HandleFunc("/buildinfo", buildInfoHandler)
 
 	// --- API Routes (Authentication required) ---
 	apiMux := http.NewServeMux()
