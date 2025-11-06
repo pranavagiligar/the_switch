@@ -35,7 +35,33 @@ This application provides a single, cohesive solution for persistent job schedul
 - **Job Details:** Each job card displays its name, description, script content, creation time, CRON expression, and critical status indicators.
 
 
-### **3. The Skip Count Mechanism**
+### **3. Search & Sorting**
+
+The jobs list API (`/api/jobs/`) supports filtering and sorting via query parameters:
+
+- **Search (`?q=`):** Filter jobs by matching text in title or description
+	```
+	GET /api/jobs/?q=backup   # Find jobs with "backup" in title/description
+	```
+
+- **Sort (`?sort=`):** Control the order of results
+	- `alphabetical` - Sort by job title (A-Z)
+	- `date_created` - Sort by creation date (newest first)
+	- `date_modified` - Sort by last modification date (newest first)
+	- `next_schedule` - Sort by next scheduled run time (soonest first)
+	```
+	GET /api/jobs/?sort=next_schedule   # Show jobs ordered by next run time
+	```
+
+Parameters can be combined:
+```
+GET /api/jobs/?q=backup&sort=date_modified
+```
+
+The web interface provides a search box and sort dropdown that use these parameters. Your chosen search and sort preferences persist across page reloads and are reflected in the URL (e.g. `/?q=backup&sort=next_schedule`).
+
+
+### **4. The Skip Count Mechanism**
 
 The Skip Count feature provides temporary execution control without modifying the CRON schedule itself.
 
