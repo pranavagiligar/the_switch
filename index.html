@@ -123,6 +123,47 @@
         const API_BASE = window.location.origin;
         let authToken = localStorage.getItem('authToken');
         let jobList = []; // Cache for job data
+        // Search & Sort preferences
+        const SEARCH_SORT_STORAGE_KEY = 'jobPrefs';
+        const DEFAULT_PREFS = { search: '', sort: '' };
+        let activeSearchDelay = null;
+
+        // --- Search & Sort State Management ---
+
+        function getPrefs() {
+            const stored = localStorage.getItem(SEARCH_SORT_STORAGE_KEY);
+            return stored ? JSON.parse(stored) : DEFAULT_PREFS;
+        }
+
+        function savePrefs(prefs) {
+            localStorage.setItem(SEARCH_SORT_STORAGE_KEY, JSON.stringify(prefs));
+        }
+
+        function updateURL(search, sort) {
+            const url = new URL(window.location);
+            if (search) url.searchParams.set('q', search);
+            else url.searchParams.delete('q');
+            if (sort) url.searchParams.set('sort', sort);
+            else url.searchParams.delete('sort');
+            window.history.replaceState({}, '', url);
+        }
+
+        // Get prefs from URL or fall back to stored/default
+        function getInitialPrefs() {
+            const url = new URL(window.location);
+            const stored = getPrefs();
+            return {
+                search: url.searchParams.get('q') || stored.search || DEFAULT_PREFS.search,
+                sort: url.searchParams.get('sort') || stored.sort || DEFAULT_PREFS.sort
+            };
+        }
+
+        function applyPrefsToUI(prefs) {
+            const searchEl = document.getElementById('search-input');
+            const sortEl = document.getElementById('sort-select');
+            if (searchEl) searchEl.value = prefs.search;
+            if (sortEl) sortEl.value = prefs.sort;
+        }
 
         // --- Utility Functions ---
 
@@ -280,6 +321,7 @@
         function renderDashboard() {
             updateAuthState(true);
             const contentArea = document.getElementById('content-area');
+            const prefs = getInitialPrefs();
             contentArea.innerHTML = `
                 <div class="w-full max-w-7xl">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 p-4 bg-white rounded-2xl card border-b-4 border-indigo-600">
@@ -288,6 +330,18 @@
                             ${renderIcon('plus', 'w-5 h-5 mr-2')} New Job
                         </button>
                     </div>
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="flex items-center space-x-3 w-full max-w-3xl">
+                                    <input id="search-input" type="text" placeholder="Search title or description..." oninput="onSearchInput()" class="input-style" />
+                                    <select id="sort-select" onchange="onSortChange()" class="input-style w-56">
+                                        <option value="">Sort: Default (Newest)</option>
+                                        <option value="alphabetical">Alphabetical (A–Z)</option>
+                                        <option value="date_created">Date Created (Newest)</option>
+                                        <option value="date_modified">Date Modified (Newest)</option>
+                                        <option value="next_schedule">Next Schedule (Soonest)</option>
+                                    </select>
+                                </div>
+                            </div>
                     <div id="job-list-container">
                         <div class="p-10 text-center bg-white rounded-2xl card text-gray-500">
                             ${renderIcon('loader-2', 'w-6 h-6 animate-spin mx-auto mb-2')}
@@ -296,11 +350,48 @@
                     </div>
                 </div>
             `;
+            // Apply initial preferences from URL/storage
+            applyPrefsToUI(prefs);
+            // Initial fetch with preferences
+            fetchJobs();
+        }
+
+        // Debounced search handler
+        function onSearchInput() {
+            if (activeSearchDelay) clearTimeout(activeSearchDelay);
+            activeSearchDelay = setTimeout(() => {
+                const prefs = {
+                    search: document.getElementById('search-input').value,
+                    sort: document.getElementById('sort-select').value
+                };
+                savePrefs(prefs);
+                updateURL(prefs.search, prefs.sort);
+                fetchJobs();
+            }, 300);
+        }
+
+        function onSortChange() {
+            const prefs = {
+                search: document.getElementById('search-input').value,
+                sort: document.getElementById('sort-select').value
+            };
+            savePrefs(prefs);
+            updateURL(prefs.search, prefs.sort);
             fetchJobs();
         }
 
         async function fetchJobs() {
-            const response = await authFetch(`${API_BASE}/api/jobs/`, { method: 'GET' });
+            // Build query params from search and sort controls
+            const searchEl = document.getElementById('search-input');
+            const sortEl = document.getElementById('sort-select');
+            const params = new URLSearchParams();
+            if (searchEl && searchEl.value.trim()) params.append('q', searchEl.value.trim());
+            if (sortEl && sortEl.value) params.append('sort', sortEl.value);
+            let url = `${API_BASE}/api/jobs/`;
+            const qs = params.toString();
+            if (qs) url += '?' + qs;
+
+            const response = await authFetch(url, { method: 'GET' });
             
             if (response && response.ok) {
                 jobList = await response.json();
@@ -330,6 +421,8 @@
 
             jobs.forEach(job => {
                 const createdAt = new Date(job.createdAt).toLocaleString();
+                const updatedAt = (job.updatedAt && job.updatedAt > 0) ? new Date(job.updatedAt).toLocaleString() : null;
+                const updatedDifferent = (job.updatedAt && job.updatedAt > job.createdAt);
                 
                 let nextRunTimeDisplay = '<span class="text-gray-400">N/A</span>';
                 let cronWarning = '';
@@ -404,6 +497,12 @@
                                 ${renderIcon('calendar', 'w-4 h-4 mr-2 text-gray-400')}
                                 Created: <span class="ml-2">${createdAt}</span>
                             </div>
+                            ${updatedDifferent ? `
+                            <div class="flex items-center text-gray-500">
+                                ${renderIcon('edit-3', 'w-4 h-4 mr-2 text-gray-400')}
+                                Last Modified: <span class="ml-2">${escapeHtml(updatedAt)}</span>
+                            </div>
+                            ` : ''}
                             <div class="flex items-center text-red-500 font-bold">
                                 ${renderIcon('x-circle', 'w-4 h-4 mr-2 text-red-400')} Skip Count: <span id="skip-count-${escapeHtml(job.id)}" class="ml-2 font-extrabold text-red-600">${job.skipCount}</span>
                             </div>

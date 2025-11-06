@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,6 +41,7 @@ type Job struct {
 	ScriptContent  string            `json:"scriptContent"`
 	SkipCount      int               `json:"skipCount"`
 	CreatedAt      int64             `json:"createdAt"`
+	UpdatedAt      int64             `json:"updatedAt,omitempty"`
 	NextRunAt      int64             `json:"nextRunAt"`         // Unix milliseconds timestamp for the next run
 	EnvVars        map[string]string `json:"envVars,omitempty"` // Stored as JSON string in DB
 	// NotifyBeforeSeconds: number of seconds before the scheduled run to notify (0 = disabled)
@@ -439,6 +441,7 @@ func initializeDB(dbPath, adminPassword string) error {
 			scriptContent TEXT NOT NULL,
 			skipCount INTEGER DEFAULT 0,
 			createdAt INTEGER NOT NULL,
+			updatedAt INTEGER NOT NULL,
 			envVars TEXT DEFAULT '{}',
 			notifyBeforeSeconds INTEGER DEFAULT 0
 		);
@@ -452,7 +455,8 @@ func initializeDB(dbPath, adminPassword string) error {
 	rows, merr := db.Query("PRAGMA table_info(jobs);")
 	if merr == nil {
 		defer rows.Close()
-		found := false
+		foundNotify := false
+		foundUpdatedAt := false
 		for rows.Next() {
 			var cid int
 			var name string
@@ -462,17 +466,27 @@ func initializeDB(dbPath, adminPassword string) error {
 			var pk int
 			if scanErr := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); scanErr == nil {
 				if name == "notifyBeforeSeconds" {
-					found = true
-					break
+					foundNotify = true
+				}
+				if name == "updatedAt" {
+					foundUpdatedAt = true
 				}
 			}
 		}
-		if !found {
+		if !foundNotify {
 			_, aerr := db.Exec("ALTER TABLE jobs ADD COLUMN notifyBeforeSeconds INTEGER DEFAULT 0;")
 			if aerr != nil {
 				log.Printf("[MIGRATION] Failed to add notifyBeforeSeconds column: %v", aerr)
 			} else {
 				log.Printf("[MIGRATION] notifyBeforeSeconds column added to jobs table")
+			}
+		}
+		if !foundUpdatedAt {
+			_, aerr := db.Exec("ALTER TABLE jobs ADD COLUMN updatedAt INTEGER DEFAULT 0;")
+			if aerr != nil {
+				log.Printf("[MIGRATION] Failed to add updatedAt column: %v", aerr)
+			} else {
+				log.Printf("[MIGRATION] updatedAt column added to jobs table")
 			}
 		}
 	} else {
@@ -533,9 +547,9 @@ echo "API Key check: $API_KEY"
 
 		now := time.Now().UnixNano() / int64(time.Millisecond)
 		_, err = db.Exec(`
-			INSERT INTO jobs (title, description, cronExpression, scriptContent, createdAt, envVars) 
-			VALUES (?, ?, ?, ?, ?, ?);
-		`, "Daily Health Check", "Runs a simple script every night to verify system health and use an EnvVar.", mockCron, mockScript, now, envVarsJSON)
+			INSERT INTO jobs (title, description, cronExpression, scriptContent, createdAt, updatedAt, envVars) 
+			VALUES (?, ?, ?, ?, ?, ?, ?);
+		`, "Daily Health Check", "Runs a simple script every night to verify system health and use an EnvVar.", mockCron, mockScript, now, now, envVarsJSON)
 		if err != nil {
 			log.Printf("Error inserting mock job: %v", err)
 		}
@@ -586,11 +600,20 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 // --- Job Management Handlers (Updated for Features 1, 2, 3) ---
 
 // getJobsHandler is updated to fetch envVars and calculate NextRunAt
-func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
-	rows, err := db.Query(`
-		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, envVars, notifyBeforeSeconds
-		FROM jobs ORDER BY createdAt DESC;
-	`)
+func getJobsHandler(w http.ResponseWriter, r *http.Request) {
+	// Support search via ?q= and sorting via ?sort=
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	sortParam := strings.TrimSpace(r.URL.Query().Get("sort"))
+
+	baseQuery := `SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, updatedAt, envVars, notifyBeforeSeconds FROM jobs`
+	var rows *sql.Rows
+	var err error
+	if q != "" {
+		pattern := "%" + q + "%"
+		rows, err = db.Query(baseQuery+` WHERE title LIKE ? OR description LIKE ?;`, pattern, pattern)
+	} else {
+		rows, err = db.Query(baseQuery+`;`)
+	}
 	if err != nil {
 		respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "Database query failed"})
 		return
@@ -608,7 +631,8 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 		var id int
 		var envVarsJSON string // Read envVars (Feature 3)
 		var notifyBeforeSec int64
-		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &envVarsJSON, &notifyBeforeSec)
+		var updatedAt int64
+		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &updatedAt, &envVarsJSON, &notifyBeforeSec)
 		if err != nil {
 			log.Printf("[ERROR] Error scanning job row for API: %v", err)
 			continue
@@ -618,6 +642,12 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 		// Deserialize envVars (Feature 3)
 		job.EnvVars, _ = jsonToMap(envVarsJSON)
 		job.NotifyBeforeSeconds = notifyBeforeSec
+		// Populate UpdatedAt (fallback to CreatedAt if zero)
+		if updatedAt == 0 {
+			job.UpdatedAt = job.CreatedAt
+		} else {
+			job.UpdatedAt = updatedAt
+		}
 
 		// Calculate Next Run At
 		schedule, parseErr := parser.Parse(job.CronExpression)
@@ -638,6 +668,31 @@ func getJobsHandler(w http.ResponseWriter, _ *http.Request) {
 		}
 
 		jobList = append(jobList, job)
+	}
+
+	// Apply sorting in Go
+	switch sortParam {
+	case "alphabetical":
+		sort.Slice(jobList, func(i, j int) bool {
+			return strings.ToLower(jobList[i].Title) < strings.ToLower(jobList[j].Title)
+		})
+	case "date_created":
+		sort.Slice(jobList, func(i, j int) bool { return jobList[i].CreatedAt > jobList[j].CreatedAt })
+	case "date_modified":
+		sort.Slice(jobList, func(i, j int) bool { return jobList[i].UpdatedAt > jobList[j].UpdatedAt })
+	case "next_schedule":
+		sort.Slice(jobList, func(i, j int) bool {
+			ni := jobList[i].NextRunAt
+			nj := jobList[j].NextRunAt
+			if ni == 0 && nj == 0 {
+				return strings.ToLower(jobList[i].Title) < strings.ToLower(jobList[j].Title)
+			}
+			if ni == 0 { return false }
+			if nj == 0 { return true }
+			return ni < nj
+		})
+	default:
+		sort.Slice(jobList, func(i, j int) bool { return jobList[i].CreatedAt > jobList[j].CreatedAt })
 	}
 
 	respondJSON(w, http.StatusOK, jobList)
@@ -748,9 +803,9 @@ func createJobHandler(w http.ResponseWriter, r *http.Request) {
 	// 3. Insert into DB (updated to include envVars)
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	res, err := db.Exec(`
-		INSERT INTO jobs (title, description, cronExpression, scriptContent, skipCount, createdAt, envVars, notifyBeforeSeconds) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, 0, now, envVarsJSON, notifyBeforeSec) // Added envVars and notifyBefore
+		INSERT INTO jobs (title, description, cronExpression, scriptContent, skipCount, createdAt, updatedAt, envVars, notifyBeforeSeconds) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, 0, now, now, envVarsJSON, notifyBeforeSec)
 
 	if err != nil {
 		log.Printf("[DB ERROR] Failed to create job: %v", err)
@@ -842,10 +897,11 @@ func updateJobHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 3. Update DB (updated to include envVars)
+	now := time.Now().UnixNano() / int64(time.Millisecond)
 	res, err := db.Exec(`
-		UPDATE jobs SET title = ?, description = ?, cronExpression = ?, scriptContent = ?, skipCount = ?, envVars = ?, notifyBeforeSeconds = ?
+		UPDATE jobs SET title = ?, description = ?, cronExpression = ?, scriptContent = ?, skipCount = ?, envVars = ?, notifyBeforeSeconds = ?, updatedAt = ?
 		WHERE id = ?;
-	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, job.SkipCount, envVarsJSON, notifyBeforeSec, numericID) // Added envVars and notifyBefore
+	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, job.SkipCount, envVarsJSON, notifyBeforeSec, now, numericID) // Added envVars, notifyBefore, updatedAt
 
 	if err != nil {
 		log.Printf("[DB ERROR] Failed to update job %s: %v", jobIDStr, err)
