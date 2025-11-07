@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,6 +62,17 @@ type Job struct {
 	SkipCount           int    `json:"skipCount"`
 	NextRunAt           int64  `json:"nextRunAt"`
 	NotifyBeforeSeconds int64  `json:"notifyBeforeSeconds,omitempty"`
+}
+
+// JobExecution matches the job execution structure returned by the API
+type JobExecution struct {
+	ID        string `json:"id"`
+	JobID     string `json:"jobId"`
+	Status    string `json:"status"`
+	StartTime int64  `json:"startTime"`
+	Duration  int64  `json:"duration"`
+	ExitCode  int    `json:"exitCode"`
+	Output    string `json:"output"`
 }
 
 // SkipResponse matches the skip handler response in main.go
@@ -241,6 +253,7 @@ func handleStart(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 			"• /list - List all scheduled jobs.\n"+
 			"• /skip <id> - Skip the next scheduled run for a specific job ID.\n"+
 			"• /run <id> - Manually trigger a job to run immediately.\n"+
+			"• /hist <job-id> [n] - Show recent execution history for a job (default last 1).\n"+
 			"• /help - Show this message.\n\n"+
 			"Your Telegram ID: `%d`\n",
 		apiBaseURL,
@@ -367,6 +380,73 @@ func handleRun(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	} else {
 		sendApiError(bot, update.Message.Chat.ID, fmt.Sprintf("API returned an error while trying to run job `%s`.", jobID), resp)
 	}
+}
+
+// handleHist fetches recent execution history across all jobs and displays
+// the last N entries (default 10). Usage: /hist or /hist 5
+func handleHist(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	// Expect arguments: jobID [n]
+	args := strings.Fields(strings.TrimSpace(update.Message.CommandArguments()))
+	if len(args) == 0 {
+		sendPlain(bot, update.Message.Chat.ID, "❌ Usage: /hist <job-id> [n]\nExample: /hist job-1 5")
+		return
+	}
+
+	jobID := args[0]
+	limit := 1 // default per your request: show 1 last history if no number passed
+	if len(args) > 1 {
+		if v, err := strconv.Atoi(args[1]); err == nil && v > 0 {
+			limit = v
+		} else {
+			sendPlain(bot, update.Message.Chat.ID, "❌ Invalid number provided. Usage: /hist <job-id> [n]")
+			return
+		}
+	}
+
+	// Fetch history for the specific job
+	hresp, err := apiCall("GET", "/api/jobs/"+jobID+"/history", nil)
+	if err != nil {
+		sendError(bot, update.Message.Chat.ID, fmt.Sprintf("Failed to fetch history for job '%s'.", jobID), err)
+		return
+	}
+	defer hresp.Body.Close()
+	if hresp.StatusCode != http.StatusOK {
+		sendApiError(bot, update.Message.Chat.ID, fmt.Sprintf("API returned an error while fetching history for job '%s'.", jobID), hresp)
+		return
+	}
+
+	var hist []JobExecution
+	if err := json.NewDecoder(hresp.Body).Decode(&hist); err != nil {
+		sendError(bot, update.Message.Chat.ID, fmt.Sprintf("Failed to parse history for job '%s'.", jobID), err)
+		return
+	}
+
+	if len(hist) == 0 {
+		sendPlain(bot, update.Message.Chat.ID, fmt.Sprintf("✅ No execution history available for job '%s'.", jobID))
+		return
+	}
+
+	// API returns most-recent-first already; ensure order and trim to limit
+	sort.Slice(hist, func(i, j int) bool { return hist[i].StartTime > hist[j].StartTime })
+	if len(hist) > limit {
+		hist = hist[:limit]
+	}
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("📜 **Last %d Executions for %s**\n\n", len(hist), escapeMarkdown(jobID)))
+	for _, e := range hist {
+		start := time.Unix(0, e.StartTime*int64(time.Millisecond)).Format("Jan 2 2006 15:04:05 MST")
+		out := strings.ReplaceAll(e.Output, "\n", " ")
+		if len(out) > 300 {
+			out = out[:300] + "..."
+		}
+		b.WriteString(fmt.Sprintf("• `%s` — %s\n  Started: %s — Duration: %dms — Exit: %d\n  Output: %s\n\n",
+			escapeMarkdown(e.ID), escapeMarkdown(e.Status), start, e.Duration, e.ExitCode, escapeMarkdown(out)))
+	}
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, b.String())
+	msg.ParseMode = "Markdown"
+	bot.Send(msg)
 }
 
 // --- Message Sending Functions ---
@@ -570,6 +650,8 @@ func main() {
 			handleSkip(bot, update)
 		case "run":
 			handleRun(bot, update)
+        case "hist":
+            handleHist(bot, update)
 		default:
 			sendPlain(bot, update.Message.Chat.ID, "Unknown command. Use /help to see available commands.")
 		}
