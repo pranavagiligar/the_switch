@@ -318,7 +318,7 @@ func handleList(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 				"*Cron:* `%s`\n"+
 				"*Next:* %s\n"+
 				"*Skips:* %d\n"+
-				"`/hist %[1]s` `/run %[1]s` `/skip %[1]s`\n\n",
+				"`/hist %[1]s`  •  `/run %[1]s`  •  `/skip %[1]s`\n\n",
 			job.ID,
 			job.Title,
 			job.CronExpression,
