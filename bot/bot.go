@@ -359,6 +359,16 @@ func handleRun(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 // --- Message Sending Functions ---
 
+// escapeMarkdown escapes Markdown special characters in a string
+func escapeMarkdown(s string) string {
+	specialChars := []string{"_", "*", "`", "["}
+	escaped := s
+	for _, char := range specialChars {
+		escaped = strings.ReplaceAll(escaped, char, "\\"+char)
+	}
+	return escaped
+}
+
 func sendPlain(bot *tgbotapi.BotAPI, chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	bot.Send(msg)
@@ -452,8 +462,9 @@ func pollAndScheduleNotifications(bot *tgbotapi.BotAPI) {
 				schedNotifMutex.Unlock()
 
 				go func(j Job) {
-					msg := fmt.Sprintf("⏰ Reminder: Job `%s` is scheduled to run at %s (in %s).",
-						j.ID, nextRun.Format("15:04:05"), time.Until(nextRun).Truncate(time.Second))
+					// Include both Job ID and Job Title in the reminder message (with escaped title)
+					msg := fmt.Sprintf("⏰ Reminder: Job `%s` (%s) is scheduled to run at %s (in %s).",
+						j.ID, escapeMarkdown(j.Title), nextRun.Format("15:04:05"), time.Until(nextRun).Truncate(time.Second))
 					sendMarkdown(bot, authorizedUserID, msg)
 				}(job)
 				continue
@@ -468,8 +479,9 @@ func pollAndScheduleNotifications(bot *tgbotapi.BotAPI) {
 				log.Printf("[NOTIFY] scheduling job=%s in %v", job.ID, delay)
 				j := job
 				time.AfterFunc(delay, func() {
-					msg := fmt.Sprintf("⏰ Reminder: Job `%s` will run at %s (in %s).",
-						j.ID, nextRun.Format("15:04:05"), time.Until(nextRun).Truncate(time.Second))
+					// Include both Job ID and Job Title in the scheduled reminder (with escaped title)
+					msg := fmt.Sprintf("⏰ Reminder: Job `%s` (%s) will run at %s (in %s).",
+						j.ID, escapeMarkdown(j.Title), nextRun.Format("15:04:05"), time.Until(nextRun).Truncate(time.Second))
 					sendMarkdown(bot, authorizedUserID, msg)
 				})
 			}
