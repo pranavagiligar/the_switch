@@ -303,7 +303,7 @@ func handleList(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	}
 
 	var message strings.Builder
-	message.WriteString("📋 **Scheduled Jobs**\n\n")
+	message.WriteString("*📋 Scheduled Jobs*\n\n")
 
 	for _, job := range jobs {
 		// Convert NextRunAt from Unix milliseconds to readable format
@@ -313,11 +313,12 @@ func handleList(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		}
 
 		message.WriteString(fmt.Sprintf(
-			"**ID:** `%s`\n"+
-				"**Title:** %s\n"+
-				"**Cron:** `%s`\n"+
-				"**Next:** %s\n"+
-				"**Skips:** %d\n\n",
+			"*ID:* `%s`\n"+
+				"*Title:* %s\n"+
+				"*Cron:* `%s`\n"+
+				"*Next:* %s\n"+
+				"*Skips:* %d\n"+
+				"`/hist %[1]s`  •  `/run %[1]s`  •  `/skip %[1]s`\n\n",
 			job.ID,
 			job.Title,
 			job.CronExpression,
