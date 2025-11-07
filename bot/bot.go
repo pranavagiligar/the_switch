@@ -277,6 +277,18 @@ func handleList(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		return
 	}
 
+	// Sort jobs by NextRunAt time (soonest first)
+	// Use stable sort to maintain order of jobs with same NextRunAt
+	for i := 0; i < len(jobs)-1; i++ {
+		for j := 0; j < len(jobs)-i-1; j++ {
+			// Jobs with NextRunAt = 0 (invalid CRON) go to the end
+			if (jobs[j].NextRunAt == 0 && jobs[j+1].NextRunAt != 0) ||
+				(jobs[j].NextRunAt > jobs[j+1].NextRunAt && jobs[j+1].NextRunAt != 0) {
+				jobs[j], jobs[j+1] = jobs[j+1], jobs[j]
+			}
+		}
+	}
+
 	var message strings.Builder
 	message.WriteString("📋 **Scheduled Jobs**\n\n")
 
