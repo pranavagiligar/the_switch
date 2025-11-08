@@ -80,6 +80,7 @@ type SkipResponse struct {
 	ID        string `json:"id"`
 	SkipCount int    `json:"skipCount"`
 	Message   string `json:"message"`
+	NextRunAt int64  `json:"nextRunAt,omitempty"`
 }
 
 // --- Utility Functions ---
@@ -356,7 +357,15 @@ func handleSkip(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		return
 	}
 
-	msgText := fmt.Sprintf("✅ Job `%s` successfully skipped.\nNew Skip Count: **%d**", jobID, skipRes.SkipCount)
+	// Format next run time for human readable output
+	nextRun := "Unknown"
+	if skipRes.NextRunAt != 0 {
+		nextRun = time.Unix(0, skipRes.NextRunAt*int64(time.Millisecond)).Format("Jan 2, 2006 15:04:05 MST")
+	} else {
+		nextRun = "No scheduled run"
+	}
+
+	msgText := fmt.Sprintf("✅ Job `%s` successfully skipped. Next schedule at %s\nNew Skip Count: **%d**", jobID, nextRun, skipRes.SkipCount)
 	sendMarkdown(bot, update.Message.Chat.ID, msgText)
 }
 

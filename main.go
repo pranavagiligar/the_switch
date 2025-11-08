@@ -971,16 +971,33 @@ func skipJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch the new skip count to return it
+	// Fetch the new skip count and cron expression to compute the next scheduled run
 	var newSkipCount int
-	err = db.QueryRow("SELECT skipCount FROM jobs WHERE id = ?", numericID).Scan(&newSkipCount)
+	var cronExpr string
+	err = db.QueryRow("SELECT skipCount, cronExpression FROM jobs WHERE id = ?", numericID).Scan(&newSkipCount, &cronExpr)
 	if err != nil {
-		log.Printf("[DB ERROR] Failed to fetch new skip count for job %s: %v", jobIDStr, err)
+		log.Printf("[DB ERROR] Failed to fetch new skip count or cron for job %s: %v", jobIDStr, err)
 		respondJSON(w, http.StatusOK, map[string]interface{}{"message": "Job skipped, but failed to fetch new count", "skipCount": -1})
 		return
 	}
 
-	respondJSON(w, http.StatusOK, map[string]interface{}{"message": "Job skipped successfully", "skipCount": newSkipCount})
+	// Compute the next scheduled run taking skips into account
+	var nextRunAt int64 = 0
+	cronMutex.Lock()
+	sched, perr := jobParser.Parse(cronExpr)
+	cronMutex.Unlock()
+	if perr == nil {
+		next := sched.Next(time.Now())
+		// Advance by skip count to get the effective next run
+		for i := 0; i < newSkipCount; i++ {
+			next = sched.Next(next)
+		}
+		nextRunAt = next.UnixNano() / int64(time.Millisecond)
+	} else {
+		log.Printf("[WARN] Failed to parse cron expression for job %s while computing next run: %v", jobIDStr, perr)
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{"message": "Job skipped successfully", "skipCount": newSkipCount, "nextRunAt": nextRunAt})
 }
 
 // NEW: Handlers for Manual Execution and History (Feature 2 & 1)
