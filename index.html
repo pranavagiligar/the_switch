@@ -1077,8 +1077,16 @@
                 const id = textarea.id || '';
                 const jobId = id.replace(/^script-view-/, '');
                 if (!jobId) return;
-                // If already initialized, skip
-                if (window.viewerEditors[jobId]) return;
+                // If an editor was previously created for this jobId, clean it up
+                if (window.viewerEditors[jobId]) {
+                    try {
+                        // detach old editor and restore textarea (safe even if old textarea was removed)
+                        window.viewerEditors[jobId].toTextArea();
+                    } catch (e) {
+                        // ignore cleanup errors
+                    }
+                    delete window.viewerEditors[jobId];
+                }
                 try {
                     const cm = CodeMirror.fromTextArea(textarea, {
                         mode: 'shell',
