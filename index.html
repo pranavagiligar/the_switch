@@ -10,6 +10,12 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Load cronstrue library for human-readable CRON descriptions -->
     <script src="https://cdn.jsdelivr.net/npm/cronstrue@latest/dist/cronstrue.min.js"></script>
+    <!-- CodeMirror (v5) for script editor: dark theme + line numbers -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/darcula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+    <!-- Shell mode for bash/sh highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/shell/shell.min.js"></script>
     <style>
         /* Custom styles for aesthetic enhancements */
         body {
@@ -514,7 +520,8 @@
                             <summary class="font-bold cursor-pointer text-sm flex items-center text-gray-700 hover:text-indigo-600 transition">
                                 ${renderIcon('code', 'w-5 h-5 mr-2 text-indigo-500')} Script Content (View)
                             </summary>
-                            <pre class="mt-3 text-xs overflow-x-auto p-3 bg-gray-100 rounded-lg text-gray-800 border border-gray-200 max-h-40">${escapeHtml(job.scriptContent)}</pre>
+                            <!-- Use a textarea so CodeMirror can render a read-only, dark themed viewer with line numbers -->
+                            <textarea id="script-view-${escapeHtml(job.id)}" class="script-view mt-3 text-xs p-0 bg-transparent border-0 font-mono" rows="8" readonly>${escapeHtml(job.scriptContent)}</textarea>
                         </details>
                         
                         <!-- Action buttons (Manual Run & Skip) -->
@@ -540,6 +547,8 @@
 
             html += `</div>`;
             container.innerHTML = html;
+            // Initialize CodeMirror viewers for any script view textareas
+            try { initScriptViewers(); } catch (e) { console.debug('initScriptViewers failed:', e); }
         }
 
         function confirmDeleteJob(jobId, jobTitle) {
@@ -830,6 +839,8 @@
                 // Add one empty row by default
                 addEnvVarInput('', '', false); 
             }
+            // Initialize CodeMirror for the form script textarea (dark theme, line numbers)
+            try { initScriptFormEditor(); } catch (e) { console.debug('initScriptFormEditor failed:', e); }
         }
 
 
@@ -838,6 +849,10 @@
             const title = form.title.value;
             const description = form.description.value;
             const cronExpression = form.cronExpression.value;
+            // If CodeMirror is active for the form, ensure textarea is synced
+            if (window.cmFormEditor) {
+                try { form.scriptContent.value = window.cmFormEditor.getValue(); } catch (e) { /* ignore */ }
+            }
             const scriptContent = form.scriptContent.value;
             const skipCount = form.skipCount ? parseInt(form.skipCount.value) : 0;
             
@@ -1050,6 +1065,67 @@
             });
             html += `</div>`;
             contentDiv.innerHTML = html;
+        }
+
+        // --- CodeMirror Initialization Helpers (dark theme + line numbers) ---
+        // initScriptViewers: initialize read-only viewers for job list items
+        function initScriptViewers() {
+            if (typeof CodeMirror === 'undefined') return;
+            window.viewerEditors = window.viewerEditors || {};
+            const elems = document.querySelectorAll('.script-view');
+            elems.forEach(textarea => {
+                const id = textarea.id || '';
+                const jobId = id.replace(/^script-view-/, '');
+                if (!jobId) return;
+                // If an editor was previously created for this jobId, clean it up
+                if (window.viewerEditors[jobId]) {
+                    try {
+                        // detach old editor and restore textarea (safe even if old textarea was removed)
+                        window.viewerEditors[jobId].toTextArea();
+                    } catch (e) {
+                        // ignore cleanup errors
+                    }
+                    delete window.viewerEditors[jobId];
+                }
+                try {
+                    const cm = CodeMirror.fromTextArea(textarea, {
+                        mode: 'shell',
+                        theme: 'darcula',
+                        lineNumbers: true,
+                        readOnly: true,
+                        viewportMargin: Infinity
+                    });
+                    cm.setSize('100%', 'auto');
+                    window.viewerEditors[jobId] = cm;
+                } catch (e) {
+                    console.debug('Failed to init viewer CodeMirror for', jobId, e);
+                }
+            });
+        }
+
+        // initScriptFormEditor: initialize (or re-initialize) the editor used on create/update form
+        function initScriptFormEditor() {
+            if (typeof CodeMirror === 'undefined') return;
+            // Clean up previous editor if present
+            if (window.cmFormEditor) {
+                try { window.cmFormEditor.toTextArea(); } catch (e) { /* ignore */ }
+                window.cmFormEditor = null;
+            }
+            const ta = document.getElementById('scriptContent');
+            if (!ta) return;
+            try {
+                window.cmFormEditor = CodeMirror.fromTextArea(ta, {
+                    mode: 'shell',
+                    theme: 'darcula',
+                    lineNumbers: true,
+                    indentUnit: 2,
+                    lineWrapping: true
+                });
+                // Give a comfortable height for editing
+                window.cmFormEditor.setSize('100%', 300);
+            } catch (e) {
+                console.debug('initScriptFormEditor failed:', e);
+            }
         }
 
 
