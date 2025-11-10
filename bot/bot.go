@@ -591,6 +591,66 @@ func pollAndScheduleNotifications(bot *tgbotapi.BotAPI) {
 	}
 }
 
+// internalNotifyHandler returns an HTTP handler that accepts job execution notifications
+// from the main process. It expects a JSON payload with fields:
+// { jobId, title, cronExpression, nextRunAt (ms), status, durationMs, exitCode }
+// and validates the X-INTERNAL-TOKEN header against BOT_INTERNAL_TOKEN env var.
+func internalNotifyHandler(bot *tgbotapi.BotAPI) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only accept POST
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		expected := os.Getenv("BOT_INTERNAL_TOKEN")
+		if expected == "" {
+			http.Error(w, "internal notifications disabled", http.StatusForbidden)
+			return
+		}
+
+		if r.Header.Get("X-INTERNAL-TOKEN") != expected {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		var payload struct {
+			JobID         string `json:"jobId"`
+			Title         string `json:"title"`
+			CronExpr      string `json:"cronExpression"`
+			NextRunAt     int64  `json:"nextRunAt"`
+			Status        string `json:"status"`
+			DurationMs    int64  `json:"durationMs"`
+			ExitCode      int    `json:"exitCode"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
+
+		nextRun := "Unknown"
+		if payload.NextRunAt != 0 {
+			nextRun = time.Unix(0, payload.NextRunAt*int64(time.Millisecond)).Format("Jan 2, 2006 15:04:05 MST")
+		}
+
+		emoji := "✅"
+		if strings.ToLower(payload.Status) != "success" {
+			emoji = "❌"
+		}
+
+		msg := fmt.Sprintf("%s Job `%s` (`%s`) — *%s*\nNext scheduled for: %s\nDuration: %dms — Exit Code: %d",
+			emoji, escapeMarkdown(payload.Title), payload.JobID, payload.Status, nextRun, payload.DurationMs, payload.ExitCode)
+
+		// Send the message to the authorized user
+		sendMarkdown(bot, authorizedUserID, msg)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"ok":true}`))
+	}
+}
+
 // --- Main Function ---
 
 func main() {
@@ -627,6 +687,21 @@ func main() {
 
 	// Start background poller that schedules pre-run Telegram notifications
 	go pollAndScheduleNotifications(bot)
+
+	// Start internal HTTP server for receiving notifications from main.go
+	go func() {
+		port := os.Getenv("BOT_INTERNAL_PORT")
+		if port == "" {
+			port = "9090"
+		}
+		mux := http.NewServeMux()
+		mux.HandleFunc("/internal/notify", internalNotifyHandler(bot))
+		addr := "127.0.0.1:" + port
+		log.Printf("[BOT] internal notify endpoint listening on %s", addr)
+		if err := http.ListenAndServe(addr, mux); err != nil {
+			log.Printf("[BOT] internal notify server stopped: %v", err)
+		}
+	}()
 
 	for update := range updates {
 		if update.Message == nil { // ignore any non-message updates

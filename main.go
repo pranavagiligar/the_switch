@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"regexp"
@@ -253,6 +255,65 @@ func getNumericJobID(jobID string) (int, error) {
 
 // --- Scheduler and Execution Logic ---
 
+// notifyBotOfExecution sends a notification to the bot process via HTTP about a completed job execution.
+// This is non-blocking (runs in a goroutine) to avoid slowing down the scheduler.
+// Returns immediately if bot integration is not configured.
+func notifyBotOfExecution(job Job, status string, durationMs int64, exitCode int, nextRunAt int64) {
+	go func() {
+		botURL := os.Getenv("BOT_NOTIFY_URL")
+		if botURL == "" {
+			botURL = "http://127.0.0.1:9090"
+		}
+
+		token := os.Getenv("BOT_INTERNAL_TOKEN")
+		if token == "" {
+			// Bot notifications not configured; silently skip
+			return
+		}
+
+		payload := map[string]interface{}{
+			"jobId":          job.ID,
+			"title":          job.Title,
+			"cronExpression": job.CronExpression,
+			"nextRunAt":      nextRunAt,
+			"status":         status,
+			"durationMs":     durationMs,
+			"exitCode":       exitCode,
+		}
+
+		body, err := json.Marshal(payload)
+		if err != nil {
+			log.Printf("[BOT NOTIFY] Failed to marshal payload: %v", err)
+			return
+		}
+
+		req, err := http.NewRequest("POST", botURL+"/internal/notify", bytes.NewReader(body))
+		if err != nil {
+			log.Printf("[BOT NOTIFY] Failed to create request: %v", err)
+			return
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-INTERNAL-TOKEN", token)
+
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("[BOT NOTIFY] Failed to reach bot at %s: %v", botURL, err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			log.Printf("[BOT NOTIFY] Bot returned status %d: %s", resp.StatusCode, string(body))
+			return
+		}
+
+		log.Printf("[BOT NOTIFY] Successfully notified bot about job %s", job.ID)
+	}()
+}
+
 // NEW: Separates execution logic for re-use by scheduler and manual run handler (Feature 1 & 3)
 func executeAndLogJob(job Job) {
 	// 1. Prepare environment variables (Feature 3)
@@ -308,6 +369,25 @@ func executeAndLogJob(job Job) {
 	if dbErr != nil {
 		log.Printf("[DB ERROR] Failed to store execution log for job %s: %v", job.ID, dbErr)
 	}
+
+	// 6. Compute next run time for notification (best-effort)
+	var nextRunAt int64 = 0
+	cronMutex.Lock()
+	parser := jobParser
+	cronMutex.Unlock()
+	if parser != nil {
+		if sched, err := parser.Parse(job.CronExpression); err == nil {
+			next := sched.Next(time.Now())
+			// Apply skip count to get effective next run
+			for i := 0; i < job.SkipCount; i++ {
+				next = sched.Next(next)
+			}
+			nextRunAt = next.UnixNano() / int64(time.Millisecond)
+		}
+	}
+
+	// 7. Notify the bot process about the execution (non-blocking)
+	notifyBotOfExecution(job, status, duration, exitCode, nextRunAt)
 }
 
 // runJob executes the script content for a given job (called by cron).
@@ -428,9 +508,9 @@ func initializeDB(dbPath, adminPassword string) error {
 		);
 	`)
 	if err != nil {
-		return fmt.Errorf("error creating users table: %w", err)
-	}
 
+	// Send a notification to the bot process (best-effort, non-blocking)
+	notifyBot(job, status, duration, exitCode)
 	// Update Jobs table schema (Feature 3)
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS jobs (
@@ -1079,6 +1159,52 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// notifyBot posts a small JSON payload to the bot internal HTTP endpoint so the bot
+// (running as a separate process) can send Telegram notifications. This is best-effort
+// and non-blocking.
+func notifyBot(job Job, status string, durationMillis int64, exitCode int) {
+	url := os.Getenv("BOT_NOTIFY_URL")
+	if url == "" {
+		url = "http://127.0.0.1:9090/internal/notify"
+	}
+
+	payload := map[string]interface{}{
+		"jobId":         job.ID,
+		"title":         job.Title,
+		"cronExpression": job.CronExpression,
+		"nextRunAt":     job.NextRunAt,
+		"status":        status,
+		"durationMs":    durationMillis,
+		"exitCode":      exitCode,
+	}
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		log.Printf("[NOTIFY] failed to create request to bot: %v", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token := os.Getenv("BOT_INTERNAL_TOKEN"); token != "" {
+		req.Header.Set("X-INTERNAL-TOKEN", token)
+	}
+
+	// Fire-and-forget in a goroutine to avoid blocking the scheduler
+	go func() {
+		client := &http.Client{Timeout: 5 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("[NOTIFY] failed to POST to bot at %s: %v", url, err)
+			return
+		}
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			log.Printf("[NOTIFY] bot returned non-2xx status: %d", resp.StatusCode)
+		}
+	}()
 }
 
 // --- Main Function and Routing ---
