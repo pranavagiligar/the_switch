@@ -357,6 +357,23 @@ func handleSkip(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		return
 	}
 
+	// Try to fetch job details so we can include the Job Title in the response
+	jobTitle := ""
+	jresp, jerr := apiCall("GET", "/api/jobs/"+jobID, nil)
+	if jerr == nil && jresp != nil {
+		defer jresp.Body.Close()
+		if jresp.StatusCode == http.StatusOK {
+			var j Job
+			if err := json.NewDecoder(jresp.Body).Decode(&j); err == nil {
+				jobTitle = j.Title
+			}
+		}
+	}
+
+	if jobTitle == "" {
+		jobTitle = "(unknown)"
+	}
+
 	// Format next run time for human readable output
 	nextRun := "Unknown"
 	if skipRes.NextRunAt != 0 {
@@ -365,7 +382,9 @@ func handleSkip(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 		nextRun = "No scheduled run"
 	}
 
-	msgText := fmt.Sprintf("✅ Job `%s` successfully skipped. Next schedule at %s\nNew Skip Count: **%d**", jobID, nextRun, skipRes.SkipCount)
+	// Include Job Title along with Job ID, Next schedule and Skip count
+	msgText := fmt.Sprintf("✅ Job `%s` (%s) successfully skipped. Next schedule at %s\nNew Skip Count: **%d**",
+		jobID, escapeMarkdown(jobTitle), nextRun, skipRes.SkipCount)
 	sendMarkdown(bot, update.Message.Chat.ID, msgText)
 }
 
@@ -660,8 +679,8 @@ func main() {
 			handleSkip(bot, update)
 		case "run":
 			handleRun(bot, update)
-        case "hist":
-            handleHist(bot, update)
+		case "hist":
+			handleHist(bot, update)
 		default:
 			sendPlain(bot, update.Message.Chat.ID, "Unknown command. Use /help to see available commands.")
 		}
