@@ -1,20 +1,58 @@
+/* CSS Variables for Theme Support */
+:root {
+    --bg-primary: #f7f9fc;
+    --bg-secondary: #ffffff;
+    --bg-card: #ffffff;
+    --text-primary: #1f2937;
+    --text-secondary: #6b7280;
+    --border-color: #e5e7eb;
+    --border-light: #f3f4f6;
+    --shadow-color: rgba(10, 20, 40, 0.1);
+    --input-bg: #ffffff;
+    --input-border: #e2e8f0;
+}
+
+/* Dark Mode Variables */
+html.dark {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-card: #1e293b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border-color: #334155;
+    --border-light: #475569;
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --input-bg: #334155;
+    --input-border: #475569;
+}
+
 /* Custom styles for aesthetic enhancements */
 body {
     font-family: 'Inter', sans-serif;
-    /* Modern, subtle background */
-    background-color: #f7f9fc;
+    background-color: var(--bg-primary);
     min-height: 100vh;
+    color: var(--text-primary);
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .card {
     /* Enhanced shadow for a lifted, modern look */
-    box-shadow: 0 12px 24px -6px rgba(10, 20, 40, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+    background-color: var(--bg-card);
+    box-shadow: 0 12px 24px -6px var(--shadow-color), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, background-color 0.3s ease;
+}
+
+html.dark .card {
+    box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 }
 
 .card:hover {
     transform: translateY(-2px);
     box-shadow: 0 16px 32px -8px rgba(10, 20, 40, 0.15), 0 6px 10px -3px rgba(0, 0, 0, 0.08);
+}
+
+html.dark .card:hover {
+    box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.5), 0 6px 10px -3px rgba(0, 0, 0, 0.3);
 }
 
 .main-container {
@@ -26,14 +64,11 @@ body {
 .input-style {
     width: 100%;
     padding: 0.65rem 1rem;
-    /* Slightly larger padding */
-    border: 1px solid #e2e8f0;
-    /* Lighter border */
+    border: 1px solid var(--input-border);
     border-radius: 0.75rem;
-    /* More rounded */
     transition: all 150ms ease-in-out;
-    background-color: #ffffff;
-    /* Explicit white background */
+    background-color: var(--input-bg);
+    color: var(--text-primary);
 }
 
 .input-style:focus {
@@ -64,4 +99,52 @@ body {
 
 .modal-content {
     transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+    position: relative;
+    width: 60px;
+    height: 30px;
+    background-color: var(--border-color);
+    border-radius: 15px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    display: flex;
+    align-items: center;
+    padding: 3px;
+}
+
+.theme-toggle:hover {
+    background-color: var(--border-light);
+}
+
+.theme-toggle-slider {
+    width: 24px;
+    height: 24px;
+    background-color: #ffffff;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .theme-toggle {
+    background-color: #4f46e5;
+}
+
+html.dark .theme-toggle-slider {
+    transform: translateX(30px);
+}
+
+.theme-icon {
+    width: 16px;
+    height: 16px;
+    color: #f59e0b;
+}
+
+html.dark .theme-icon {
+    color: #fbbf24;
 }
