@@ -389,8 +389,17 @@ func handleSkip(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	}
 
 	// Include Job Title along with Job ID, Next schedule and Skip count
-	msgText := fmt.Sprintf("✅ Job `%s` (%s) successfully skipped. Next schedule at %s\nNew Skip Count: **%d**",
-		jobID, escapeMarkdown(jobTitle), nextRun, skipRes.SkipCount)
+	msgText := fmt.Sprintf(
+		"✅ **Job Successfully Skipped**\n\n"+
+			"*Job Name:* %s\n"+
+			"*Job ID:* `%s`\n"+
+			"*Next Schedule:* %s\n"+
+			"*New Skip Count:* %d",
+		escapeMarkdown(jobTitle),
+		jobID,
+		nextRun,
+		skipRes.SkipCount,
+	)
 	sendMarkdown(bot, update.Message.Chat.ID, msgText)
 }
 

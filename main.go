@@ -612,7 +612,7 @@ func getJobsHandler(w http.ResponseWriter, r *http.Request) {
 		pattern := "%" + q + "%"
 		rows, err = db.Query(baseQuery+` WHERE title LIKE ? OR description LIKE ?;`, pattern, pattern)
 	} else {
-		rows, err = db.Query(baseQuery+`;`)
+		rows, err = db.Query(baseQuery + `;`)
 	}
 	if err != nil {
 		respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "Database query failed"})
@@ -687,8 +687,12 @@ func getJobsHandler(w http.ResponseWriter, r *http.Request) {
 			if ni == 0 && nj == 0 {
 				return strings.ToLower(jobList[i].Title) < strings.ToLower(jobList[j].Title)
 			}
-			if ni == 0 { return false }
-			if nj == 0 { return true }
+			if ni == 0 {
+				return false
+			}
+			if nj == 0 {
+				return true
+			}
 			return ni < nj
 		})
 	default:
@@ -1000,6 +1004,67 @@ func skipJobHandler(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]interface{}{"message": "Job skipped successfully", "skipCount": newSkipCount, "nextRunAt": nextRunAt})
 }
 
+// getJobHandler handles GET /api/jobs/{id}
+func getJobHandler(w http.ResponseWriter, r *http.Request) {
+	pathParts := strings.Split(r.URL.Path, "/")
+	jobIDStr := pathParts[3]
+	numericID, err := getNumericJobID(jobIDStr)
+	if err != nil {
+		respondJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid Job ID format"})
+		return
+	}
+
+	var job Job
+	var envVarsJSON string
+	var notifyBeforeSec int64
+	var updatedAt int64
+	var id int
+
+	err = db.QueryRow(`
+		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, updatedAt, envVars, notifyBeforeSeconds
+		FROM jobs WHERE id = ?
+	`, numericID).Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &updatedAt, &envVarsJSON, &notifyBeforeSec)
+
+	if err == sql.ErrNoRows {
+		respondJSON(w, http.StatusNotFound, map[string]string{"error": "Job not found"})
+		return
+	}
+	if err != nil {
+		log.Printf("[DB ERROR] Failed to fetch job %s: %v", jobIDStr, err)
+		respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to fetch job data"})
+		return
+	}
+
+	job.ID = fmt.Sprintf("job-%d", id)
+	job.EnvVars, _ = jsonToMap(envVarsJSON)
+	job.NotifyBeforeSeconds = notifyBeforeSec
+	if updatedAt == 0 {
+		job.UpdatedAt = job.CreatedAt
+	} else {
+		job.UpdatedAt = updatedAt
+	}
+
+	// Calculate NextRunAt
+	cronMutex.Lock()
+	parser := jobParser
+	cronMutex.Unlock()
+
+	schedule, parseErr := parser.Parse(job.CronExpression)
+	if parseErr == nil {
+		now := time.Now()
+		nextTime := schedule.Next(now)
+		// Apply SkipCount
+		for i := 0; i < job.SkipCount; i++ {
+			nextTime = schedule.Next(nextTime)
+		}
+		job.NextRunAt = nextTime.UnixNano() / int64(time.Millisecond)
+	} else {
+		job.NextRunAt = 0
+	}
+
+	respondJSON(w, http.StatusOK, job)
+}
+
 // NEW: Handlers for Manual Execution and History (Feature 2 & 1)
 
 // runJobManuallyHandler handles POST /api/jobs/{id}/run (Feature 2)
@@ -1157,6 +1222,9 @@ func main() {
 				}
 			case "":
 				switch r.Method {
+				case http.MethodGet:
+					getJobHandler(w, r)
+					return
 				case http.MethodDelete:
 					deleteJobHandler(w, r)
 					return
