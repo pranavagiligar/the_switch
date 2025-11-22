@@ -1,0 +1,67 @@
+/* Custom styles for aesthetic enhancements */
+body {
+    font-family: 'Inter', sans-serif;
+    /* Modern, subtle background */
+    background-color: #f7f9fc;
+    min-height: 100vh;
+}
+
+.card {
+    /* Enhanced shadow for a lifted, modern look */
+    box-shadow: 0 12px 24px -6px rgba(10, 20, 40, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 32px -8px rgba(10, 20, 40, 0.15), 0 6px 10px -3px rgba(0, 0, 0, 0.08);
+}
+
+.main-container {
+    min-height: calc(100vh - 4rem);
+    /* Header space */
+}
+
+/* Style for text inputs and textareas */
+.input-style {
+    width: 100%;
+    padding: 0.65rem 1rem;
+    /* Slightly larger padding */
+    border: 1px solid #e2e8f0;
+    /* Lighter border */
+    border-radius: 0.75rem;
+    /* More rounded */
+    transition: all 150ms ease-in-out;
+    background-color: #ffffff;
+    /* Explicit white background */
+}
+
+.input-style:focus {
+    outline: none;
+    border-color: #4f46e5;
+    /* Deeper indigo */
+    box-shadow: 0 0 0 3px #c7d2fe;
+    /* Soft indigo ring */
+}
+
+/* Style for the submit button to include a subtle gradient */
+.primary-btn {
+    background-image: linear-gradient(to right, #6366f1, #4f46e5);
+    transition: all 0.3s ease;
+    transform: translateY(0);
+}
+
+.primary-btn:hover {
+    box-shadow: 0 8px 15px rgba(99, 102, 241, 0.4);
+    transform: translateY(-1px);
+}
+
+/* Modal specific styles for transition */
+.modal-overlay {
+    background-color: rgba(0, 0, 0, 0.6);
+    transition: opacity 0.3s ease;
+}
+
+.modal-content {
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
