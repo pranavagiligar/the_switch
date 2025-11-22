@@ -1050,9 +1050,100 @@ window.onload = function () {
     // Populate build/version info in the footer (non-blocking)
     fetchAndPopulateBuildInfo();
 
+    // Initialize theme
+    initTheme();
+
     if (authToken) {
         renderDashboard();
     } else {
         renderLogin();
     }
 };
+
+// --- Theme Management ---
+
+const THEME_STORAGE_KEY = 'theme-preference';
+const THEME_LIGHT = 'light';
+const THEME_DARK = 'dark';
+const THEME_SYSTEM = 'system';
+
+// Get system theme preference
+function getSystemTheme() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? THEME_DARK : THEME_LIGHT;
+}
+
+// Get stored theme preference or default to system
+function getThemePreference() {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return stored || THEME_SYSTEM;
+}
+
+// Apply theme to the document
+function applyTheme(theme) {
+    const htmlElement = document.documentElement;
+    const themeIcon = document.getElementById('theme-icon');
+
+    let actualTheme = theme;
+    if (theme === THEME_SYSTEM) {
+        actualTheme = getSystemTheme();
+    }
+
+    if (actualTheme === THEME_DARK) {
+        htmlElement.classList.add('dark');
+        if (themeIcon) {
+            // Moon icon for dark mode
+            themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>';
+        }
+    } else {
+        htmlElement.classList.remove('dark');
+        if (themeIcon) {
+            // Sun icon for light mode
+            themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>';
+        }
+    }
+}
+
+// Cycle through themes: system -> light -> dark -> system
+function cycleTheme() {
+    const currentPreference = getThemePreference();
+    let nextTheme;
+
+    if (currentPreference === THEME_SYSTEM) {
+        nextTheme = THEME_LIGHT;
+    } else if (currentPreference === THEME_LIGHT) {
+        nextTheme = THEME_DARK;
+    } else {
+        nextTheme = THEME_SYSTEM;
+    }
+
+    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    applyTheme(nextTheme);
+
+    // Show a subtle message indicating the theme change
+    const themeNames = {
+        [THEME_SYSTEM]: 'System',
+        [THEME_LIGHT]: 'Light',
+        [THEME_DARK]: 'Dark'
+    };
+    showMessage(`Theme: ${themeNames[nextTheme]}`, 'info');
+}
+
+// Initialize theme on page load
+function initTheme() {
+    const preference = getThemePreference();
+    applyTheme(preference);
+
+    // Set up theme toggle button
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', cycleTheme);
+    }
+
+    // Listen for system theme changes when in system mode
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', (e) => {
+        if (getThemePreference() === THEME_SYSTEM) {
+            applyTheme(THEME_SYSTEM);
+        }
+    });
+}
