@@ -48,6 +48,8 @@ type Job struct {
 	NotifyBeforeSeconds int64 `json:"notifyBeforeSeconds,omitempty"`
 	// NotifyBefore: optional human-friendly input (e.g. "5m", "2h"). Accepted on create/update.
 	NotifyBefore string `json:"notifyBefore,omitempty"`
+	// NotifyOnExecution: if true, sends a notification after the job completes (Feature 4)
+	NotifyOnExecution bool `json:"notifyOnExecution"`
 }
 
 // NEW: JobExecution defines the structure for an execution log entry (Feature 1)
@@ -443,7 +445,8 @@ func initializeDB(dbPath, adminPassword string) error {
 			createdAt INTEGER NOT NULL,
 			updatedAt INTEGER NOT NULL,
 			envVars TEXT DEFAULT '{}',
-			notifyBeforeSeconds INTEGER DEFAULT 0
+			notifyBeforeSeconds INTEGER DEFAULT 0,
+			notifyOnExecution BOOLEAN DEFAULT 0
 		);
 	`)
 	if err != nil {
@@ -487,6 +490,34 @@ func initializeDB(dbPath, adminPassword string) error {
 				log.Printf("[MIGRATION] Failed to add updatedAt column: %v", aerr)
 			} else {
 				log.Printf("[MIGRATION] updatedAt column added to jobs table")
+			}
+		}
+
+		// Check for notifyOnExecution column
+		foundNotifyExec := false
+		rows, merr = db.Query("PRAGMA table_info(jobs);") // Re-query to be safe
+		if merr == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var cid int
+				var name string
+				var ctype string
+				var notnull int
+				var dfltValue sql.NullString
+				var pk int
+				if scanErr := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); scanErr == nil {
+					if name == "notifyOnExecution" {
+						foundNotifyExec = true
+					}
+				}
+			}
+		}
+		if !foundNotifyExec {
+			_, aerr := db.Exec("ALTER TABLE jobs ADD COLUMN notifyOnExecution BOOLEAN DEFAULT 0;")
+			if aerr != nil {
+				log.Printf("[MIGRATION] Failed to add notifyOnExecution column: %v", aerr)
+			} else {
+				log.Printf("[MIGRATION] notifyOnExecution column added to jobs table")
 			}
 		}
 	} else {
@@ -605,7 +636,7 @@ func getJobsHandler(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	sortParam := strings.TrimSpace(r.URL.Query().Get("sort"))
 
-	baseQuery := `SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, updatedAt, envVars, notifyBeforeSeconds FROM jobs`
+	baseQuery := `SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, updatedAt, envVars, notifyBeforeSeconds, notifyOnExecution FROM jobs`
 	var rows *sql.Rows
 	var err error
 	if q != "" {
@@ -632,7 +663,8 @@ func getJobsHandler(w http.ResponseWriter, r *http.Request) {
 		var envVarsJSON string // Read envVars (Feature 3)
 		var notifyBeforeSec int64
 		var updatedAt int64
-		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &updatedAt, &envVarsJSON, &notifyBeforeSec)
+		var notifyOnExec bool
+		err := rows.Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &updatedAt, &envVarsJSON, &notifyBeforeSec, &notifyOnExec)
 		if err != nil {
 			log.Printf("[ERROR] Error scanning job row for API: %v", err)
 			continue
@@ -642,6 +674,7 @@ func getJobsHandler(w http.ResponseWriter, r *http.Request) {
 		// Deserialize envVars (Feature 3)
 		job.EnvVars, _ = jsonToMap(envVarsJSON)
 		job.NotifyBeforeSeconds = notifyBeforeSec
+		job.NotifyOnExecution = notifyOnExec
 		// Populate UpdatedAt (fallback to CreatedAt if zero)
 		if updatedAt == 0 {
 			job.UpdatedAt = job.CreatedAt
@@ -807,9 +840,9 @@ func createJobHandler(w http.ResponseWriter, r *http.Request) {
 	// 3. Insert into DB (updated to include envVars)
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	res, err := db.Exec(`
-		INSERT INTO jobs (title, description, cronExpression, scriptContent, skipCount, createdAt, updatedAt, envVars, notifyBeforeSeconds) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, 0, now, now, envVarsJSON, notifyBeforeSec)
+		INSERT INTO jobs (title, description, cronExpression, scriptContent, skipCount, createdAt, updatedAt, envVars, notifyBeforeSeconds, notifyOnExecution) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, 0, now, now, envVarsJSON, notifyBeforeSec, job.NotifyOnExecution)
 
 	if err != nil {
 		log.Printf("[DB ERROR] Failed to create job: %v", err)
@@ -903,9 +936,9 @@ func updateJobHandler(w http.ResponseWriter, r *http.Request) {
 	// 3. Update DB (updated to include envVars)
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	res, err := db.Exec(`
-		UPDATE jobs SET title = ?, description = ?, cronExpression = ?, scriptContent = ?, skipCount = ?, envVars = ?, notifyBeforeSeconds = ?, updatedAt = ?
+		UPDATE jobs SET title = ?, description = ?, cronExpression = ?, scriptContent = ?, skipCount = ?, envVars = ?, notifyBeforeSeconds = ?, notifyOnExecution = ?, updatedAt = ?
 		WHERE id = ?;
-	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, job.SkipCount, envVarsJSON, notifyBeforeSec, now, numericID) // Added envVars, notifyBefore, updatedAt
+	`, job.Title, job.Description, job.CronExpression, job.ScriptContent, job.SkipCount, envVarsJSON, notifyBeforeSec, job.NotifyOnExecution, now, numericID) // Added envVars, notifyBefore, notifyOnExecution, updatedAt
 
 	if err != nil {
 		log.Printf("[DB ERROR] Failed to update job %s: %v", jobIDStr, err)
@@ -1018,12 +1051,13 @@ func getJobHandler(w http.ResponseWriter, r *http.Request) {
 	var envVarsJSON string
 	var notifyBeforeSec int64
 	var updatedAt int64
+	var notifyOnExec bool
 	var id int
 
 	err = db.QueryRow(`
-		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, updatedAt, envVars, notifyBeforeSeconds
+		SELECT id, title, description, cronExpression, scriptContent, skipCount, createdAt, updatedAt, envVars, notifyBeforeSeconds, notifyOnExecution
 		FROM jobs WHERE id = ?
-	`, numericID).Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &updatedAt, &envVarsJSON, &notifyBeforeSec)
+	`, numericID).Scan(&id, &job.Title, &job.Description, &job.CronExpression, &job.ScriptContent, &job.SkipCount, &job.CreatedAt, &updatedAt, &envVarsJSON, &notifyBeforeSec, &notifyOnExec)
 
 	if err == sql.ErrNoRows {
 		respondJSON(w, http.StatusNotFound, map[string]string{"error": "Job not found"})
@@ -1038,6 +1072,7 @@ func getJobHandler(w http.ResponseWriter, r *http.Request) {
 	job.ID = fmt.Sprintf("job-%d", id)
 	job.EnvVars, _ = jsonToMap(envVarsJSON)
 	job.NotifyBeforeSeconds = notifyBeforeSec
+	job.NotifyOnExecution = notifyOnExec
 	if updatedAt == 0 {
 		job.UpdatedAt = job.CreatedAt
 	} else {

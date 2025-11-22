@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -21,41 +22,55 @@
         body {
             font-family: 'Inter', sans-serif;
             /* Modern, subtle background */
-            background-color: #f7f9fc; 
+            background-color: #f7f9fc;
             min-height: 100vh;
         }
+
         .card {
             /* Enhanced shadow for a lifted, modern look */
             box-shadow: 0 12px 24px -6px rgba(10, 20, 40, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
             transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
         }
+
         .card:hover {
             transform: translateY(-2px);
             box-shadow: 0 16px 32px -8px rgba(10, 20, 40, 0.15), 0 6px 10px -3px rgba(0, 0, 0, 0.08);
         }
+
         .main-container {
-            min-height: calc(100vh - 4rem); /* Header space */
+            min-height: calc(100vh - 4rem);
+            /* Header space */
         }
+
         /* Style for text inputs and textareas */
         .input-style {
             width: 100%;
-            padding: 0.65rem 1rem; /* Slightly larger padding */
-            border: 1px solid #e2e8f0; /* Lighter border */
-            border-radius: 0.75rem; /* More rounded */
+            padding: 0.65rem 1rem;
+            /* Slightly larger padding */
+            border: 1px solid #e2e8f0;
+            /* Lighter border */
+            border-radius: 0.75rem;
+            /* More rounded */
             transition: all 150ms ease-in-out;
-            background-color: #ffffff; /* Explicit white background */
+            background-color: #ffffff;
+            /* Explicit white background */
         }
+
         .input-style:focus {
             outline: none;
-            border-color: #4f46e5; /* Deeper indigo */
-            box-shadow: 0 0 0 3px #c7d2fe; /* Soft indigo ring */
+            border-color: #4f46e5;
+            /* Deeper indigo */
+            box-shadow: 0 0 0 3px #c7d2fe;
+            /* Soft indigo ring */
         }
+
         /* Style for the submit button to include a subtle gradient */
         .primary-btn {
             background-image: linear-gradient(to right, #6366f1, #4f46e5);
             transition: all 0.3s ease;
             transform: translateY(0);
         }
+
         .primary-btn:hover {
             box-shadow: 0 8px 15px rgba(99, 102, 241, 0.4);
             transform: translateY(-1px);
@@ -66,25 +81,30 @@
             background-color: rgba(0, 0, 0, 0.6);
             transition: opacity 0.3s ease;
         }
+
         .modal-content {
             transition: transform 0.3s ease-out, opacity 0.3s ease-out;
         }
-        
     </style>
 </head>
+
 <body class="antialiased">
 
     <!-- Main Application Container -->
     <div id="app" class="flex flex-col items-center main-container">
-        
+
         <!-- Header - Made it sticky and added a distinct shadow/color -->
         <header id="header-bar" class="w-full fixed top-0 bg-white shadow-lg z-30">
             <div class="max-w-7xl mx-auto flex justify-between items-center px-4 sm:px-8 py-3 border-b border-gray-100">
                 <h1 class="text-2xl font-extrabold text-indigo-700 tracking-tight flex items-center">
                     <span class="text-3xl mr-2">⚡</span> TheSwitch
-                    <span class="hidden sm:inline text-xs ml-4 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">Job Manager</span>
+                    <span
+                        class="hidden sm:inline text-xs ml-4 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full font-medium">Job
+                        Manager</span>
                 </h1>
-                <button id="logout-button" class="hidden px-4 py-2 bg-red-500 text-white font-semibold rounded-lg shadow-lg hover:bg-red-600 transition duration-150" onclick="handleLogout()">
+                <button id="logout-button"
+                    class="hidden px-4 py-2 bg-red-500 text-white font-semibold rounded-lg shadow-lg hover:bg-red-600 transition duration-150"
+                    onclick="handleLogout()">
                     Logout
                 </button>
             </div>
@@ -96,15 +116,21 @@
     </div>
 
     <!-- Execution History Modal (Hidden by default) -->
-    <div id="history-modal" class="hidden fixed inset-0 z-50 overflow-y-auto modal-overlay flex items-center justify-center" onclick="if (event.target === this) closeHistoryModal()">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl m-4 modal-content transform translate-y-0 opacity-100">
+    <div id="history-modal"
+        class="hidden fixed inset-0 z-50 overflow-y-auto modal-overlay flex items-center justify-center"
+        onclick="if (event.target === this) closeHistoryModal()">
+        <div
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl m-4 modal-content transform translate-y-0 opacity-100">
             <!-- Modal Header -->
             <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-indigo-50 rounded-t-2xl">
                 <h3 id="history-modal-title" class="text-xl font-extrabold text-indigo-700">Execution History</h3>
-                <button onclick="closeHistoryModal()" class="p-2 rounded-full text-indigo-500 hover:bg-indigo-100 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
-                    <path d="M18 6 6 18"/>
-                    <path d="m6 6 12 12"/>
+                <button onclick="closeHistoryModal()"
+                    class="p-2 rounded-full text-indigo-500 hover:bg-indigo-100 transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="w-5 h-5">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
                     </svg>
                 </button>
             </div>
@@ -116,7 +142,8 @@
 
             <!-- Modal Footer -->
             <div class="p-4 border-t border-gray-100 flex justify-end">
-                <button onclick="closeHistoryModal()" class="px-6 py-2 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition duration-150">
+                <button onclick="closeHistoryModal()"
+                    class="px-6 py-2 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition duration-150">
                     Close
                 </button>
             </div>
@@ -173,9 +200,9 @@
 
         // --- Utility Functions ---
 
-        function escapeHtml(str) { 
+        function escapeHtml(str) {
             if (typeof str !== 'string') return '';
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); 
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
         }
 
         function renderIcon(name, classes = 'w-5 h-5') {
@@ -196,9 +223,9 @@
             // Improved toast message styling
             messageBox.className = `fixed top-20 right-4 p-4 pr-6 text-white rounded-xl shadow-2xl z-50 transition-all duration-300 ease-in-out transform translate-x-full opacity-0 ${bgColor} flex items-center space-x-2`;
             messageBox.innerHTML = `${renderIcon(icon, 'w-5 h-5')} <span class="font-semibold">${escapeHtml(message)}</span>`;
-            
+
             container.appendChild(messageBox);
-            
+
             // Show animation
             setTimeout(() => {
                 messageBox.classList.remove('translate-x-full', 'opacity-0');
@@ -226,7 +253,7 @@
                 'Authorization': `Bearer ${authToken}`,
                 'Content-Type': 'application/json',
             };
-            
+
             try {
                 const response = await fetch(url, options);
                 if (response.status === 401) {
@@ -257,7 +284,7 @@
             updateAuthState(false);
             renderLogin();
         }
-        
+
         // --- Rendering Logic: Login ---
 
         function renderLogin() {
@@ -398,7 +425,7 @@
             if (qs) url += '?' + qs;
 
             const response = await authFetch(url, { method: 'GET' });
-            
+
             if (response && response.ok) {
                 jobList = await response.json();
                 renderJobList(jobList);
@@ -429,7 +456,7 @@
                 const createdAt = new Date(job.createdAt).toLocaleString();
                 const updatedAt = (job.updatedAt && job.updatedAt > 0) ? new Date(job.updatedAt).toLocaleString() : null;
                 const updatedDifferent = (job.updatedAt && job.updatedAt > job.createdAt);
-                
+
                 let nextRunTimeDisplay = '<span class="text-gray-400">N/A</span>';
                 let cronWarning = '';
                 let nextRunColor = 'text-green-600';
@@ -468,11 +495,20 @@
                     }
                 }
 
+                // Show post-execution notification indicator
+                let notifyExecBadge = '';
+                if (job.notifyOnExecution) {
+                    notifyExecBadge = `<span title="Post-execution notifications enabled" class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">${renderIcon('bell-ring', 'w-3 h-3 mr-1')} Notify</span>`;
+                }
+
                 html += `
                     <div id="job-${escapeHtml(job.id)}" class="card bg-white p-6 rounded-2xl border-t-8 border-indigo-500 flex flex-col transition duration-300 hover:border-indigo-600">
                         <div class="flex justify-between items-start mb-4">
                             <!-- Added flex-1 and min-w-0 to allow title to shrink and buttons to stay visible -->
-                            <h3 class="text-2xl font-extrabold text-gray-900 leading-tight flex-1 min-w-0 mr-4">${escapeHtml(job.title)}</h3>
+                            <h3 class="text-2xl font-extrabold text-gray-900 leading-tight flex-1 min-w-0 mr-4 flex items-center flex-wrap">
+                                ${escapeHtml(job.title)}
+                                ${notifyExecBadge}
+                            </h3>
                             <!-- Added flex-shrink-0 to ensure buttons take priority space -->
                             <div class="flex space-x-2">
                                 <button onclick="renderJobForm('${escapeHtml(job.id)}')" title="Edit Job" class="flex items-center p-1 rounded-lg hover:bg-blue-100 text-blue-500 hover:text-blue-700 transition text-sm font-medium">
@@ -566,11 +602,11 @@
                 // Remove job from the list immediately
                 const jobElement = document.getElementById(`job-${jobId}`);
                 if (jobElement) jobElement.classList.add('animate-out', 'fade-out', 'slide-out-to-right-4'); // Tailwind animation classes are not available by default, but applying a class for removal.
-                
+
                 // Use a short delay before actually removing the element
                 setTimeout(() => {
                     if (jobElement) jobElement.remove();
-                    
+
                     // Check if the list is empty and re-render if necessary
                     const jobListContainer = document.getElementById('job-list-container');
                     if (jobListContainer) {
@@ -593,7 +629,7 @@
             skipElement.innerHTML = `${renderIcon('loader-2', 'w-4 h-4 animate-spin inline')}`; // Loading indicator
 
             const response = await authFetch(`${API_BASE}/api/jobs/${jobId}/skip`, { method: 'POST' });
-            
+
             if (response && response.ok) {
                 const result = await response.json();
                 skipElement.textContent = result.skipCount;
@@ -619,7 +655,7 @@
             const div = document.createElement('div');
             div.className = 'flex space-x-3 items-center';
             // Use crypto.randomUUID for unique key in the DOM, not for API payload
-            const uniqueId = crypto.randomUUID(); 
+            const uniqueId = crypto.randomUUID();
             div.innerHTML = `
                 <input type="text" id="env-key-${uniqueId}" name="env-key" placeholder="KEY (e.g., API_TOKEN)" value="${escapeHtml(key)}" class="input-style flex-1 bg-white">
                 <span class="text-xl font-bold text-gray-400">=</span>
@@ -646,6 +682,8 @@
                 scriptContent: '#!/bin/bash\necho "Hello from the new job!"',
                 skipCount: 0,
                 envVars: {},
+                notifyBeforeSeconds: 0, // Initialize notifyBeforeSeconds for new jobs
+                notifyOnExecution: false,
             };
             let isEdit = jobId !== null;
 
@@ -710,6 +748,14 @@
                                 <p id="notify-info" class="text-xs text-gray-500 mt-1">If set, the bot will send a Telegram reminder <strong>before</strong> the job runs.</p>
                                 <p id="notify-warning" class="text-xs mt-1 hidden"></p>
                             </div>
+
+                            <div class="mb-4 flex items-center">
+                                <input type="checkbox" id="notifyOnExecution" name="notifyOnExecution" class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300" ${jobData.notifyOnExecution ? 'checked' : ''}>
+                                <label for="notifyOnExecution" class="ml-2 block text-sm font-medium text-gray-700">
+                                    Notify on Execution (Telegram)
+                                </label>
+                            </div>
+                            <p class="text-xs text-gray-500 ml-7 -mt-2 mb-4">If checked, the bot will send a notification <strong>after</strong> the job completes (Success or Failure).</p>
                         </div>
 
                         <div class="mb-8 p-4 border rounded-xl bg-gray-50">
@@ -760,10 +806,10 @@
             const updateCronDescription = () => {
                 const cronInput = document.getElementById('cronExpression').value;
                 const descElement = document.getElementById('cron-description');
-                
+
                 // Clear previous state and add icon
                 descElement.innerHTML = `${renderIcon('calendar-search', 'w-4 h-4 mr-1')}`;
-                
+
                 try {
                     const descriptionText = cronstrue.toString(cronInput);
                     descElement.innerHTML += descriptionText;
@@ -837,7 +883,7 @@
                 });
             } else {
                 // Add one empty row by default
-                addEnvVarInput('', '', false); 
+                addEnvVarInput('', '', false);
             }
             // Initialize CodeMirror for the form script textarea (dark theme, line numbers)
             try { initScriptFormEditor(); } catch (e) { console.debug('initScriptFormEditor failed:', e); }
@@ -855,7 +901,7 @@
             }
             const scriptContent = form.scriptContent.value;
             const skipCount = form.skipCount ? parseInt(form.skipCount.value) : 0;
-            
+
             const submitButton = document.getElementById('submit-button');
             submitButton.disabled = true;
             const originalButtonText = submitButton.innerHTML;
@@ -866,7 +912,7 @@
             // Select all key and value inputs by their name attribute
             const keyInputs = form.querySelectorAll('input[name="env-key"]');
             const valueInputs = form.querySelectorAll('input[name="env-value"]');
-            
+
             keyInputs.forEach((keyInput, index) => {
                 const key = keyInput.value.trim();
                 const value = valueInputs[index].value.trim();
@@ -883,11 +929,12 @@
                 scriptContent,
                 skipCount,
                 // Add EnvVars to jobData
-                envVars: envVars, 
+                envVars: envVars,
                 // NotifyBefore short string (e.g. "5m")
-                notifyBefore: form.notifyBefore ? form.notifyBefore.value.trim() : ''
+                notifyBefore: form.notifyBefore ? form.notifyBefore.value.trim() : '',
+                notifyOnExecution: form.notifyOnExecution ? form.notifyOnExecution.checked : false
             };
-            
+
             let response;
             let method;
             let url;
@@ -976,12 +1023,12 @@
             } finally {
                 runButton.disabled = false;
                 runButton.innerHTML = originalContent;
-                
+
                 // If the history modal is open, force a refresh
                 const modal = document.getElementById('history-modal');
                 if (!modal.classList.contains('hidden')) {
                     // Slight delay to allow backend goroutine to finish logging (optimistic approach)
-                    setTimeout(() => loadJobHistory(jobId), 500); 
+                    setTimeout(() => loadJobHistory(jobId), 500);
                 }
             }
         }
@@ -994,10 +1041,10 @@
             const modalBody = document.getElementById('history-modal-body');
 
             modalTitle.textContent = `Execution History: ${jobTitle}`;
-            
+
             // Show loading spinner while fetching
             modalBody.innerHTML = `<p class="text-md text-gray-500 text-center py-6">${renderIcon('loader-2', 'w-6 h-6 animate-spin inline mr-2')} Loading execution records...</p>`;
-            
+
             // Show modal
             modal.classList.remove('hidden');
             document.body.classList.add('overflow-hidden'); // Prevent background scrolling
@@ -1015,9 +1062,9 @@
 
         async function loadJobHistory(jobId) {
             const contentDiv = document.getElementById('history-modal-body');
-            
+
             const response = await authFetch(`${API_BASE}/api/jobs/${jobId}/history`, { method: 'GET' });
-            
+
             if (response && response.ok) {
                 const history = await response.json();
                 renderHistoryListInModal(history);
@@ -1029,7 +1076,7 @@
 
         function renderHistoryListInModal(history) {
             const contentDiv = document.getElementById('history-modal-body');
-            
+
             if (history.length === 0) {
                 contentDiv.innerHTML = `<p class="text-md text-gray-500 text-center py-6">${renderIcon('calendar-check', 'w-6 h-6 mx-auto mb-2')} No execution records found yet.</p>`;
                 return;
@@ -1042,10 +1089,10 @@
                 const statusColor = isSuccess ? 'text-green-700' : 'text-red-700';
                 const bgColor = isSuccess ? 'bg-green-50' : 'bg-red-50';
                 const iconName = isSuccess ? 'check-circle' : 'x-circle';
-                const startTime = new Date(exec.startTime).toLocaleTimeString(); 
-                const fullDateTime = new Date(exec.startTime).toLocaleString(); 
+                const startTime = new Date(exec.startTime).toLocaleTimeString();
+                const fullDateTime = new Date(exec.startTime).toLocaleString();
                 const durationSeconds = (exec.duration / 1000).toFixed(2);
-                const exitCodeDisplay = exec.exitCode >= 0 ? exec.exitCode : 'N/A'; 
+                const exitCodeDisplay = exec.exitCode >= 0 ? exec.exitCode : 'N/A';
 
                 html += `
                     <details class="p-3 rounded-xl ${bgColor} border border-gray-200 shadow-sm">
@@ -1150,7 +1197,7 @@
         }
 
         // Check auth status on load and render the correct view
-        window.onload = function() {
+        window.onload = function () {
             // Need to set the global API base for the bot.go to work in the canvas environment
             window.API_BASE = window.location.origin;
 
@@ -1171,12 +1218,16 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-8 py-3 text-sm text-gray-500 flex justify-between items-center">
             <div class="text-xs text-gray-400">© TheSwitch</div>
             <div class="flex space-x-4 items-center">
-                <div class="text-xs text-gray-600">Version: <span id="build-version" class="font-mono text-sm">dev</span></div>
-                <div class="text-xs text-gray-600">Revision: <span id="build-revision" class="font-mono text-sm">none</span></div>
-                <div class="text-xs text-gray-600">Built: <span id="build-time" class="font-mono text-sm">unknown</span></div>
+                <div class="text-xs text-gray-600">Version: <span id="build-version"
+                        class="font-mono text-sm">dev</span></div>
+                <div class="text-xs text-gray-600">Revision: <span id="build-revision"
+                        class="font-mono text-sm">none</span></div>
+                <div class="text-xs text-gray-600">Built: <span id="build-time" class="font-mono text-sm">unknown</span>
+                </div>
             </div>
         </div>
     </footer>
 
 </body>
+
 </html>

@@ -68,6 +68,7 @@ type Job struct {
 	SkipCount           int    `json:"skipCount"`
 	NextRunAt           int64  `json:"nextRunAt"`
 	NotifyBeforeSeconds int64  `json:"notifyBeforeSeconds,omitempty"`
+	NotifyOnExecution   bool   `json:"notifyOnExecution"`
 }
 
 // JobExecution matches the job execution structure returned by the API
@@ -607,8 +608,17 @@ func pollJobExecutions(bot *tgbotapi.BotAPI) {
 				continue
 			}
 
-			// Only notify for completed executions (status = "completed" or "failed")
-			if latestExec.Status != "completed" && latestExec.Status != "failed" {
+			// Check if notifications are enabled for this job (Feature 4)
+			if !job.NotifyOnExecution {
+				// Even if disabled, we should mark it as seen so we don't spam if enabled later
+				executionMutex.Lock()
+				lastSeenExecution[job.ID] = latestExec.ID
+				executionMutex.Unlock()
+				continue
+			}
+
+			// Only notify for completed executions (status = "Success" or "Failure")
+			if latestExec.Status != "Success" && latestExec.Status != "Failure" {
 				continue
 			}
 
@@ -620,7 +630,7 @@ func pollJobExecutions(bot *tgbotapi.BotAPI) {
 			// Determine pass/fail emoji and status text
 			statusEmoji := "✅"
 			statusText := "succeeded"
-			if latestExec.Status == "failed" || latestExec.ExitCode != 0 {
+			if latestExec.Status == "Failure" || latestExec.ExitCode != 0 {
 				statusEmoji = "❌"
 				statusText = "failed"
 			}
