@@ -119,6 +119,23 @@ func main() {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	})
 
+	// Export/Import Configuration Routes
+	apiMux.HandleFunc("/api/settings/export", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handlers.ExportConfigurationHandler(version)(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	})
+
+	apiMux.HandleFunc("/api/settings/import", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			handlers.ImportConfigurationHandler(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	})
+
 	// Apply authMiddleware to the API routes
 	mux.Handle("/api/", middleware.AuthMiddleware(apiMux.ServeHTTP, cfg))
 

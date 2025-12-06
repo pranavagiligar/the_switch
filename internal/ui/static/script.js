@@ -1147,3 +1147,143 @@ function initTheme() {
         }
     });
 }
+
+// --- Settings Modal & Export/Import Logic ---
+
+function openSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            const content = modal.querySelector('.modal-content');
+            if (content) {
+                content.classList.remove('translate-y-4', 'opacity-0', 'scale-95');
+            }
+        }, 10);
+    }
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) {
+        const content = modal.querySelector('.modal-content');
+        if (content) {
+            content.classList.add('translate-y-4', 'opacity-0', 'scale-95');
+        }
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    }
+}
+
+function handleExport() {
+    if (!authToken) {
+        showMessage('You must be logged in to export configuration.', 'error');
+        return;
+    }
+    // Create a temporary link to trigger download
+    // Note: We need to pass the Authorization header. 
+    // Since we cannot add headers to a standard <a href> click, and we don't want to use XHR for file download if possible to keep it simple,
+    // we might need to fetch as blob -> create object URL.
+
+    fetch(`${API_BASE}/api/settings/export`, {
+        headers: { 'Authorization': `Bearer ${authToken}` }
+    })
+        .then(response => {
+            if (!response.ok) throw new Error("Export failed");
+            return response.blob();
+        })
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            // Ideally we get filename from Content-Disposition, but fallback to default
+            a.download = `the_switch_config_${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        })
+        .catch(err => {
+            console.error(err);
+            showMessage("Failed to export configuration.", 'error');
+        });
+}
+
+function handleDrop(event) {
+    event.preventDefault();
+    const zone = document.getElementById('drop-zone');
+    if (zone) zone.classList.remove('border-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/20');
+
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+        const file = event.dataTransfer.files[0];
+        uploadConfigFile(file);
+    }
+}
+
+function handleFileSelect(event) {
+    if (event.target.files && event.target.files.length > 0) {
+        uploadConfigFile(event.target.files[0]);
+    }
+    // Reset input so same file can be selected again if needed
+    event.target.value = '';
+}
+
+async function uploadConfigFile(file) {
+    if (!file) return;
+
+    // Optimistic UI update
+    const zone = document.getElementById('drop-zone');
+    const originalContent = zone ? zone.innerHTML : '';
+    if (zone) {
+        zone.innerHTML = `<div class="flex flex-col items-center justify-center py-6">
+            ${renderIcon('loader-2', 'w-10 h-10 animate-spin text-indigo-500 mb-3')}
+            <span class="text-gray-600 dark:text-gray-300 font-semibold">Importing ${escapeHtml(file.name)}...</span>
+        </div>`;
+    }
+
+    const formData = new FormData();
+    formData.append('configFile', file);
+
+    try {
+        const response = await fetch(`${API_BASE}/api/settings/import`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showMessage(result.message || "Import successful!", 'success');
+            // Close modal and refresh dashboard
+            closeSettingsModal();
+            fetchJobs();
+        } else {
+            showMessage(result.error || "Import failed.", 'error');
+            if (zone) zone.innerHTML = originalContent; // Restore UI
+        }
+    } catch (error) {
+        console.error("Import error:", error);
+        showMessage("Network error during import.", 'error');
+        if (zone) zone.innerHTML = originalContent; // Restore UI
+    }
+}
+
+// Update updateAuthState to toggle settings button visibility
+const originalUpdateAuthState = updateAuthState;
+updateAuthState = function (isLoggedIn) {
+    // Call original implementation
+    const logoutBtn = document.getElementById('logout-button');
+    if (isLoggedIn) logoutBtn.classList.remove('hidden');
+    else logoutBtn.classList.add('hidden');
+
+    // Handle Settings Button
+    const settingsBtn = document.getElementById('settings-button');
+    if (settingsBtn) {
+        if (isLoggedIn) settingsBtn.classList.remove('hidden');
+        else settingsBtn.classList.add('hidden');
+    }
+};
