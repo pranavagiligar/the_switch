@@ -132,6 +132,7 @@ func HandleSkip(bot *tgbotapi.BotAPI, update tgbotapi.Update, client *api.Client
 
 	// Try to fetch job details so we can include the Job Title in the response
 	jobTitle := ""
+	var nextRunAt int64
 	jresp, jerr := client.Call("GET", "/api/jobs/"+jobID, nil)
 	if jerr == nil && jresp != nil {
 		defer jresp.Body.Close()
@@ -139,6 +140,7 @@ func HandleSkip(bot *tgbotapi.BotAPI, update tgbotapi.Update, client *api.Client
 			var j models.Job
 			if err := json.NewDecoder(jresp.Body).Decode(&j); err == nil {
 				jobTitle = j.Title
+				nextRunAt = j.NextRunAt
 			}
 		}
 	}
@@ -149,8 +151,15 @@ func HandleSkip(bot *tgbotapi.BotAPI, update tgbotapi.Update, client *api.Client
 
 	// Format next run time for human readable output
 	nextRun := "Unknown"
-	if skipRes.NextRunAt != 0 {
-		nextRun = time.Unix(0, skipRes.NextRunAt*int64(time.Millisecond)).Format("Jan 2, 2006 15:04:05 MST")
+
+	// Use nextRunAt from job details if available, otherwise fallback to skip response
+	valToFormat := skipRes.NextRunAt
+	if nextRunAt != 0 {
+		valToFormat = nextRunAt
+	}
+
+	if valToFormat != 0 {
+		nextRun = time.Unix(0, valToFormat*int64(time.Millisecond)).Format("Jan 2, 2006 15:04:05 MST")
 	} else {
 		nextRun = "No scheduled run"
 	}
