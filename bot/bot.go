@@ -784,6 +784,9 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
+	// Initial population of execution state to prevent duplicate notifications on restart
+	initializeExecutionState()
+
 	// Start background pollers
 	go pollAndScheduleNotifications(bot) // For pre-run reminders
 	go pollJobExecutions(bot)            // For post-execution notifications
@@ -826,4 +829,59 @@ func main() {
 			sendPlain(bot, update.Message.Chat.ID, "Unknown command. Use /help to see available commands.")
 		}
 	}
+}
+
+// initializeExecutionState fetches the latest execution for each job and marks it as seen
+// This prevents the bot from sending "new execution" notifications immediately after restart
+func initializeExecutionState() {
+	log.Println("[INIT] Initializing execution state...")
+
+	resp, err := apiCall("GET", "/api/jobs/", nil)
+	if err != nil {
+		log.Printf("[INIT] Failed to fetch jobs: %v. Notifications might be duplicated on first run.", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[INIT] API returned non-OK status: %d", resp.StatusCode)
+		return
+	}
+
+	var jobs []Job
+	if err := json.NewDecoder(resp.Body).Decode(&jobs); err != nil {
+		log.Printf("[INIT] Failed to decode jobs: %v", err)
+		return
+	}
+
+	for _, job := range jobs {
+		// Fetch usage history (limit 1)
+		hresp, herr := apiCall("GET", "/api/jobs/"+job.ID+"/history?limit=1", nil)
+		if herr != nil {
+			log.Printf("[INIT] Failed to fetch history for job %s: %v", job.ID, herr)
+			continue
+		}
+
+		if hresp.StatusCode != http.StatusOK {
+			hresp.Body.Close()
+			continue
+		}
+
+		var hist []JobExecution
+		if err := json.NewDecoder(hresp.Body).Decode(&hist); err != nil {
+			hresp.Body.Close()
+			log.Printf("[INIT] Failed to decode history for job %s: %v", job.ID, err)
+			continue
+		}
+		hresp.Body.Close()
+
+		if len(hist) > 0 {
+			latestExec := hist[0]
+			executionMutex.Lock()
+			lastSeenExecution[job.ID] = latestExec.ID
+			executionMutex.Unlock()
+			log.Printf("[INIT] Job %s: Marked execution %s as seen.", job.ID, latestExec.ID)
+		}
+	}
+	log.Println("[INIT] Execution state initialized.")
 }
