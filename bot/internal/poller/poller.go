@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -16,7 +17,11 @@ import (
 	"github.com/pranavagiligar/the_switch_bot/internal/utils"
 )
 
+const stateFileName = "bot_state.json"
+
 var (
+	botStartTime = time.Now().UnixNano() / int64(time.Millisecond)
+
 	// scheduledNotifications keeps track of the last NextRunAt we scheduled a notification for
 	scheduledNotifications = make(map[string]int64)
 	schedNotifMutex        sync.Mutex
@@ -25,6 +30,56 @@ var (
 	lastSeenExecution = make(map[string]string)
 	executionMutex    sync.Mutex
 )
+
+func init() {
+	loadExecutionState()
+}
+
+// loadExecutionState restores lastSeenExecution from disk if available
+func loadExecutionState() {
+	executionMutex.Lock()
+	defer executionMutex.Unlock()
+
+	data, err := os.ReadFile(stateFileName)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Printf("[STATE] Warning: failed to read state file %s: %v", stateFileName, err)
+		}
+		return
+	}
+
+	var state map[string]string
+	if err := json.Unmarshal(data, &state); err != nil {
+		log.Printf("[STATE] Warning: failed to parse state file %s: %v", stateFileName, err)
+		return
+	}
+
+	for k, v := range state {
+		lastSeenExecution[k] = v
+	}
+	log.Printf("[STATE] Loaded %d execution states from %s", len(lastSeenExecution), stateFileName)
+}
+
+// saveExecutionState persists lastSeenExecution to disk
+func saveExecutionState() {
+	executionMutex.Lock()
+	data, err := json.MarshalIndent(lastSeenExecution, "", "  ")
+	executionMutex.Unlock()
+
+	if err != nil {
+		log.Printf("[STATE] Error marshaling state: %v", err)
+		return
+	}
+
+	tmpFile := stateFileName + ".tmp"
+	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+		log.Printf("[STATE] Error writing state temp file: %v", err)
+		return
+	}
+	if err := os.Rename(tmpFile, stateFileName); err != nil {
+		log.Printf("[STATE] Error persisting state file: %v", err)
+	}
+}
 
 // PollJobExecutions periodically checks job execution history and sends Telegram notifications
 func PollJobExecutions(bot *tgbotapi.BotAPI, client *api.Client, cfg *config.Config) {
@@ -83,12 +138,24 @@ func PollJobExecutions(bot *tgbotapi.BotAPI, client *api.Client, cfg *config.Con
 			latestExec := hist[0]
 
 			executionMutex.Lock()
-			lastID := lastSeenExecution[job.ID]
+			lastID, exists := lastSeenExecution[job.ID]
 			executionMutex.Unlock()
 
 			// Skip if we've already notified about this execution
-			if lastID == latestExec.ID {
+			if exists && lastID == latestExec.ID {
 				continue
+			}
+
+			// If no prior state was recorded (e.g. initial run or newly created job)
+			if !exists {
+				// If the execution started before this bot instance started, mark as seen without notifying
+				if latestExec.StartTime < botStartTime {
+					executionMutex.Lock()
+					lastSeenExecution[job.ID] = latestExec.ID
+					executionMutex.Unlock()
+					saveExecutionState()
+					continue
+				}
 			}
 
 			// Check if notifications are enabled for this job (Feature 4)
@@ -97,6 +164,7 @@ func PollJobExecutions(bot *tgbotapi.BotAPI, client *api.Client, cfg *config.Con
 				executionMutex.Lock()
 				lastSeenExecution[job.ID] = latestExec.ID
 				executionMutex.Unlock()
+				saveExecutionState()
 				continue
 			}
 
@@ -105,10 +173,11 @@ func PollJobExecutions(bot *tgbotapi.BotAPI, client *api.Client, cfg *config.Con
 				continue
 			}
 
-			// Mark this execution as notified
+			// Mark this execution as notified and persist state
 			executionMutex.Lock()
 			lastSeenExecution[job.ID] = latestExec.ID
 			executionMutex.Unlock()
+			saveExecutionState()
 
 			// Determine pass/fail emoji and status text
 			statusEmoji := "✅"
