@@ -1,118 +1,154 @@
-/* CSS Variables for Theme Support */
+/* CSS Variables for Modern Bespoke Ops Theme */
 :root {
-    --bg-primary: #f7f9fc;
+    --bg-primary: #f8fafc;
     --bg-secondary: #ffffff;
     --bg-card: #ffffff;
-    --text-primary: #1f2937;
-    --text-secondary: #6b7280;
-    --border-color: #e5e7eb;
-    --border-light: #f3f4f6;
-    --shadow-color: rgba(10, 20, 40, 0.1);
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+    --border-light: #f1f5f9;
+    --shadow-color: rgba(15, 23, 42, 0.06);
     --input-bg: #ffffff;
-    --input-border: #e2e8f0;
+    --input-border: #cbd5e1;
+    --accent-teal: #0d9488;
+    --accent-teal-hover: #0f766e;
+    --accent-emerald: #059669;
+    --accent-amber: #d97706;
+    --accent-ring: rgba(13, 148, 136, 0.25);
+    --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, monospace;
 }
 
-/* Dark Mode Variables */
+/* Dark Mode Variables (Obsidian Slate + Electric Teal / Emerald) */
 html.dark {
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-card: #1e293b;
-    --text-primary: #f1f5f9;
+    --bg-primary: #090d16;
+    --bg-secondary: #0f172a;
+    --bg-card: #111b2b;
+    --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
-    --border-color: #334155;
-    --border-light: #475569;
-    --shadow-color: rgba(0, 0, 0, 0.3);
-    --input-bg: #334155;
-    --input-border: #475569;
+    --text-muted: #64748b;
+    --border-color: #1e293b;
+    --border-light: #283548;
+    --shadow-color: rgba(0, 0, 0, 0.6);
+    --input-bg: #0c1322;
+    --input-border: #223049;
+    --accent-teal: #14b8a6;
+    --accent-teal-hover: #2dd4bf;
+    --accent-emerald: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-ring: rgba(20, 184, 166, 0.35);
 }
 
 /* Custom styles for aesthetic enhancements */
 body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background-color: var(--bg-primary);
     min-height: 100vh;
     color: var(--text-primary);
-    transition: background-color 0.3s ease, color 0.3s ease;
+    transition: background-color 0.25s ease, color 0.25s ease;
 }
 
+code, pre, .font-mono {
+    font-family: var(--font-mono);
+}
+
+.main-container {
+    min-height: calc(100vh - 4.5rem);
+}
+
+/* Modern Card Layout */
 .card {
-    /* Enhanced shadow for a lifted, modern look */
     background-color: var(--bg-card);
-    box-shadow: 0 12px 24px -6px var(--shadow-color), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, background-color 0.3s ease;
-}
-
-html.dark .card {
-    box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -2px var(--shadow-color);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, background-color 0.25s ease;
 }
 
 .card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 16px 32px -8px rgba(10, 20, 40, 0.15), 0 6px 10px -3px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 14px 28px -6px var(--shadow-color), 0 6px 12px -4px var(--shadow-color);
+}
+
+html.dark .card {
+    border-color: var(--border-color);
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
 }
 
 html.dark .card:hover {
-    box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.5), 0 6px 10px -3px rgba(0, 0, 0, 0.3);
+    border-color: #334155;
+    box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.7);
 }
 
-.main-container {
-    min-height: calc(100vh - 4rem);
-    /* Header space */
-}
-
-/* Style for text inputs and textareas */
+/* Form input styling */
 .input-style {
     width: 100%;
-    padding: 0.65rem 1rem;
+    padding: 0.65rem 0.95rem;
     border: 1px solid var(--input-border);
     border-radius: 0.75rem;
-    transition: all 150ms ease-in-out;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
     background-color: var(--input-bg);
     color: var(--text-primary);
+    font-size: 0.9rem;
 }
 
 .input-style:focus {
     outline: none;
-    border-color: #4f46e5;
-    /* Deeper indigo */
-    box-shadow: 0 0 0 3px #c7d2fe;
-    /* Soft indigo ring */
+    border-color: var(--accent-teal);
+    box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-/* Style for the submit button to include a subtle gradient */
+/* Primary Action Button: Glowing Cyber Teal & Emerald */
 .primary-btn {
-    background-image: linear-gradient(to right, #6366f1, #4f46e5);
-    transition: all 0.3s ease;
+    background: linear-gradient(135deg, #0d9488 0%, #059669 100%);
+    color: #ffffff;
+    transition: all 0.2s ease;
     transform: translateY(0);
+    border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .primary-btn:hover {
-    box-shadow: 0 8px 15px rgba(99, 102, 241, 0.4);
+    background: linear-gradient(135deg, #0f766e 0%, #047857 100%);
+    box-shadow: 0 6px 20px -3px rgba(13, 148, 136, 0.45);
     transform: translateY(-1px);
 }
 
-/* Modal specific styles for transition */
+.primary-btn:active {
+    transform: translateY(0);
+}
+
+html.dark .primary-btn {
+    background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+}
+
+html.dark .primary-btn:hover {
+    background: linear-gradient(135deg, #115e59 0%, #0f766e 100%);
+    box-shadow: 0 6px 22px -2px rgba(20, 184, 166, 0.4);
+}
+
+/* Modal styling */
 .modal-overlay {
-    background-color: rgba(0, 0, 0, 0.6);
-    transition: opacity 0.3s ease;
+    background-color: rgba(9, 13, 22, 0.7);
+    backdrop-filter: blur(4px);
+    transition: opacity 0.25s ease;
 }
 
 .modal-content {
-    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
 }
 
-/* Theme Toggle Button */
+/* Theme Toggle Slider */
 .theme-toggle {
     position: relative;
-    width: 60px;
-    height: 30px;
+    width: 52px;
+    height: 28px;
     background-color: var(--border-color);
-    border-radius: 15px;
+    border-radius: 9999px;
     cursor: pointer;
-    transition: background-color 0.3s ease;
+    transition: background-color 0.25s ease;
     display: flex;
     align-items: center;
-    padding: 3px;
+    padding: 2px;
+    border: 1px solid var(--border-color);
 }
 
 .theme-toggle:hover {
@@ -120,31 +156,126 @@ html.dark .card:hover {
 }
 
 .theme-toggle-slider {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     background-color: #ffffff;
     border-radius: 50%;
-    transition: transform 0.3s ease;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 html.dark .theme-toggle {
-    background-color: #4f46e5;
+    background-color: #0f766e;
+    border-color: #14b8a6;
 }
 
 html.dark .theme-toggle-slider {
-    transform: translateX(30px);
+    transform: translateX(24px);
+    background-color: #0c1322;
 }
 
 .theme-icon {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     color: #f59e0b;
 }
 
 html.dark .theme-icon {
-    color: #fbbf24;
+    color: #2dd4bf;
+}
+
+/* CodeMirror customizations for light and dark themes */
+.CodeMirror {
+    border-radius: 0.75rem;
+    font-family: var(--font-mono) !important;
+    font-size: 0.875rem !important;
+    line-height: 1.55 !important;
+    border: 1px solid var(--border-color) !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+}
+
+.CodeMirror-gutters {
+    background-color: #f8fafc !important;
+    border-right: 1px solid var(--border-color) !important;
+}
+
+.CodeMirror-linenumber {
+    color: #94a3b8 !important;
+}
+
+.CodeMirror-cursor {
+    border-left: 2px solid var(--accent-teal) !important;
+}
+
+/* Dark mode CodeMirror */
+html.dark .CodeMirror {
+    background-color: #0c1322 !important;
+    color: #f1f5f9 !important;
+    border-color: #1e293b !important;
+}
+
+html.dark .CodeMirror-gutters {
+    background-color: #080d18 !important;
+    border-right: 1px solid #1e293b !important;
+}
+
+html.dark .CodeMirror-linenumber {
+    color: #475569 !important;
+}
+
+html.dark .CodeMirror-cursor {
+    border-left: 2px solid #2dd4bf !important;
+}
+
+/* CodeMirror Syntax Highlighting - Light & Dark */
+.cm-s-default .cm-comment { color: #64748b !important; font-style: italic; }
+.cm-s-default .cm-keyword { color: #0d9488 !important; font-weight: 600; }
+.cm-s-default .cm-string { color: #059669 !important; }
+.cm-s-default .cm-variable { color: #0f172a !important; }
+.cm-s-default .cm-variable-2 { color: #d97706 !important; }
+.cm-s-default .cm-def { color: #2563eb !important; font-weight: 600; }
+.cm-s-default .cm-builtin { color: #0891b2 !important; }
+.cm-s-default .cm-number { color: #ea580c !important; }
+.cm-s-default .cm-operator { color: #475569 !important; }
+
+/* Dark mode syntax highlighting */
+html.dark .cm-s-default .cm-comment { color: #64748b !important; }
+html.dark .cm-s-default .cm-keyword { color: #2dd4bf !important; }
+html.dark .cm-s-default .cm-string { color: #34d399 !important; }
+html.dark .cm-s-default .cm-variable { color: #f1f5f9 !important; }
+html.dark .cm-s-default .cm-variable-2 { color: #fbbf24 !important; }
+html.dark .cm-s-default .cm-def { color: #38bdf8 !important; }
+html.dark .cm-s-default .cm-builtin { color: #22d3ee !important; }
+html.dark .cm-s-default .cm-number { color: #fb923c !important; }
+html.dark .cm-s-default .cm-operator { color: #94a3b8 !important; }
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+    background: #243247;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
 }

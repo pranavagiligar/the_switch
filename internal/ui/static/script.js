@@ -60,15 +60,16 @@ function renderIcon(name, classes = 'w-5 h-5') {
 
 function showMessage(message, type = 'info') {
     const container = document.getElementById('app');
-    let bgColor = 'bg-blue-500';
+    let borderColor = 'border-teal-500/40';
+    let iconColor = 'text-teal-400';
     let icon = 'info';
-    if (type === 'success') { bgColor = 'bg-green-500'; icon = 'check'; }
-    if (type === 'error') { bgColor = 'bg-red-500'; icon = 'x-circle'; }
+    if (type === 'success') { borderColor = 'border-emerald-500/50'; iconColor = 'text-emerald-400'; icon = 'check-circle'; }
+    if (type === 'error') { borderColor = 'border-rose-500/50'; iconColor = 'text-rose-400'; icon = 'alert-triangle'; }
 
     const messageBox = document.createElement('div');
-    // Improved toast message styling
-    messageBox.className = `fixed top-20 right-4 p-4 pr-6 text-white rounded-xl shadow-2xl z-50 transition-all duration-300 ease-in-out transform translate-x-full opacity-0 ${bgColor} flex items-center space-x-2`;
-    messageBox.innerHTML = `${renderIcon(icon, 'w-5 h-5')} <span class="font-semibold">${escapeHtml(message)}</span>`;
+    // High-contrast modern glass toast message
+    messageBox.className = `fixed top-20 right-4 sm:right-8 p-3.5 pr-5 bg-slate-900/95 dark:bg-slate-850/95 text-white border ${borderColor} rounded-2xl shadow-2xl z-50 backdrop-blur-md transition-all duration-300 ease-in-out transform translate-x-full opacity-0 flex items-center space-x-3 text-sm`;
+    messageBox.innerHTML = `<span class="${iconColor}">${renderIcon(icon, 'w-5 h-5')}</span> <span class="font-medium text-slate-100">${escapeHtml(message)}</span>`;
 
     container.appendChild(messageBox);
 
@@ -76,14 +77,14 @@ function showMessage(message, type = 'info') {
     setTimeout(() => {
         messageBox.classList.remove('translate-x-full', 'opacity-0');
         messageBox.classList.add('translate-x-0', 'opacity-100');
-    }, 10); // Small delay to ensure transition works
+    }, 10);
 
     // Hide animation
     setTimeout(() => {
         messageBox.classList.remove('translate-x-0', 'opacity-100');
         messageBox.classList.add('translate-x-full', 'opacity-0');
         messageBox.addEventListener('transitionend', () => messageBox.remove());
-    }, 3000);
+    }, 3200);
 }
 
 // --- Auth & Network ---
@@ -137,24 +138,32 @@ function renderLogin() {
     updateAuthState(false);
     const contentArea = document.getElementById('content-area');
     contentArea.innerHTML = `
-        <div class="w-full max-w-sm p-10 bg-white rounded-2xl card space-y-8">
-            <h2 class="text-3xl font-extrabold text-center text-indigo-600">Welcome Back</h2>
-            <form id="login-form" onsubmit="event.preventDefault(); handleLogin(event)">
-                <div class="space-y-4">
-                    <div>
-                        <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
-                        <input type="text" id="username" name="username" value="admin" class="mt-1 input-style" required>
-                    </div>
-                    <div>
-                        <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                        <input type="password" id="password" name="password" value="password" class="mt-1 input-style" required>
-                    </div>
+        <div class="w-full max-w-sm p-8 sm:p-10 bg-white dark:bg-slate-900 rounded-3xl card space-y-6 border border-slate-200 dark:border-slate-800 shadow-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-500 to-emerald-500"></div>
+            <div class="text-center space-y-2">
+                <div class="inline-flex items-center justify-center p-2.5 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 mb-1 border border-teal-500/20">
+                    ${renderIcon('sliders', 'w-6 h-6')}
                 </div>
-                <button type="submit" class="primary-btn w-full mt-8 py-3 px-4 text-white font-bold rounded-xl shadow-lg transition duration-300 ease-in-out">
-                    Sign In
+                <h2 class="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">The Switch Access</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Sign in to control automation jobs</p>
+            </div>
+            <form id="login-form" onsubmit="event.preventDefault(); handleLogin(event)" class="space-y-4">
+                <div>
+                    <label for="username" class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Username</label>
+                    <input type="text" id="username" name="username" value="admin" class="input-style" required>
+                </div>
+                <div>
+                    <label for="password" class="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1">Password</label>
+                    <input type="password" id="password" name="password" value="password" class="input-style" required>
+                </div>
+                <button type="submit" class="primary-btn w-full mt-6 py-3 px-4 text-white font-bold rounded-xl shadow-lg transition duration-200 flex items-center justify-center space-x-2">
+                    <span>Authenticate</span>
+                    ${renderIcon('arrow-right', 'w-4 h-4')}
                 </button>
             </form>
-            <p class="text-xs text-center text-gray-400">Hint: Use 'admin' / 'password' for demo login.</p>
+            <div class="p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/80 dark:border-slate-800 text-center">
+                <p class="text-xs text-slate-500 dark:text-slate-400">Demo defaults: <code class="text-teal-600 dark:text-teal-400 font-semibold font-mono">admin</code> / <code class="text-teal-600 dark:text-teal-400 font-semibold font-mono">password</code></p>
+            </div>
         </div>
     `;
 }
@@ -202,29 +211,45 @@ function renderDashboard() {
     const contentArea = document.getElementById('content-area');
     const prefs = getInitialPrefs();
     contentArea.innerHTML = `
-        <div class="w-full max-w-7xl">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 p-4 bg-white rounded-2xl card border-b-4 border-indigo-600">
-                <h2 class="text-3xl font-extrabold text-gray-800 mb-4 sm:mb-0">Scheduled Jobs</h2>
-                <button onclick="renderJobForm()" class="primary-btn px-6 py-3 flex items-center text-white font-bold rounded-xl shadow-lg transition duration-300">
-                    ${renderIcon('plus', 'w-5 h-5 mr-2')} New Job
+        <div class="w-full max-w-7xl space-y-6">
+            <!-- Action Toolbar Banner -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-5 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl card border border-slate-200 dark:border-slate-800 shadow-sm gap-4">
+                <div>
+                    <div class="flex items-center space-x-2.5">
+                        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">Scheduled Tasks</h2>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span> Active Engine
+                        </span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Manage, inspect, and trigger scheduled background executions</p>
+                </div>
+                <button onclick="renderJobForm()" class="primary-btn px-5 py-2.5 flex items-center text-white font-bold rounded-xl shadow-md text-sm whitespace-nowrap">
+                    ${renderIcon('plus', 'w-4 h-4 mr-2')} New Job
                 </button>
             </div>
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3 w-full max-w-3xl">
-                            <input id="search-input" type="text" placeholder="Search title or description..." oninput="onSearchInput()" class="input-style" />
-                            <select id="sort-select" onchange="onSortChange()" class="input-style w-56">
-                                <option value="">Sort: Default (Newest)</option>
-                                <option value="alphabetical">Alphabetical (A–Z)</option>
-                                <option value="date_created">Date Created (Newest)</option>
-                                <option value="date_modified">Date Modified (Newest)</option>
-                                <option value="next_schedule">Next Schedule (Soonest)</option>
-                            </select>
-                        </div>
+            <!-- Search and Filter Bar -->
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div class="relative flex-1 max-w-2xl">
+                    <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        ${renderIcon('search', 'w-4 h-4')}
                     </div>
+                    <input id="search-input" type="text" placeholder="Search by title or description..." oninput="onSearchInput()" class="input-style pl-10" />
+                </div>
+                <div class="flex items-center space-x-2">
+                    <select id="sort-select" onchange="onSortChange()" class="input-style w-full sm:w-60 font-medium text-xs sm:text-sm">
+                        <option value="">Sort: Default (Newest)</option>
+                        <option value="alphabetical">Alphabetical (A–Z)</option>
+                        <option value="date_created">Date Created (Newest)</option>
+                        <option value="date_modified">Date Modified (Newest)</option>
+                        <option value="next_schedule">Next Schedule (Soonest)</option>
+                    </select>
+                </div>
+            </div>
+            <!-- Job List Container -->
             <div id="job-list-container">
-                <div class="p-10 text-center bg-white rounded-2xl card text-gray-500">
-                    ${renderIcon('loader-2', 'w-6 h-6 animate-spin mx-auto mb-2')}
-                    Loading jobs...
+                <div class="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl card text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800">
+                    ${renderIcon('loader-2', 'w-6 h-6 animate-spin mx-auto mb-2 text-teal-600 dark:text-teal-400')}
+                    Loading configured jobs...
                 </div>
             </div>
         </div>
@@ -286,16 +311,18 @@ function renderJobList(jobs) {
     const container = document.getElementById('job-list-container');
 
     if (jobs.length === 0) {
-        container.innerHTML = `<div class="p-10 text-center bg-white rounded-2xl card text-gray-500 border-2 border-dashed border-gray-300">
-            ${renderIcon('calendar-check', 'w-8 h-8 mx-auto mb-3 text-indigo-400')}
-            <p class="font-semibold text-lg">No jobs currently scheduled.</p> 
-            <p class="text-sm">Click 'New Job' above to start automating tasks.</p>
+        container.innerHTML = `<div class="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl card border border-dashed border-slate-300 dark:border-slate-800">
+            <div class="p-4 bg-teal-500/10 dark:bg-teal-400/10 text-teal-600 dark:text-teal-400 rounded-2xl w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+                ${renderIcon('calendar-check', 'w-8 h-8')}
+            </div>
+            <p class="font-bold text-lg text-slate-800 dark:text-slate-200">No jobs currently scheduled</p> 
+            <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">Click <strong class="text-teal-600 dark:text-teal-400">'New Job'</strong> to configure your first automated background job.</p>
         </div>`;
         return;
     }
 
     let html = `
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     `;
 
     jobs.forEach(job => {
@@ -303,26 +330,25 @@ function renderJobList(jobs) {
         const updatedAt = (job.updatedAt && job.updatedAt > 0) ? new Date(job.updatedAt).toLocaleString() : null;
         const updatedDifferent = (job.updatedAt && job.updatedAt > job.createdAt);
 
-        let nextRunTimeDisplay = '<span class="text-gray-400">N/A</span>';
+        let nextRunTimeDisplay = '<span class="text-slate-400">N/A</span>';
         let cronWarning = '';
-        let nextRunColor = 'text-green-600';
+        let nextRunColor = 'text-emerald-600 dark:text-emerald-400';
         let notifyHtml = '';
 
         if (job.nextRunAt > 0) {
             try {
-                // Use { use24HourTime: true } for consistency or omit if not specified
                 const cronDescription = cronstrue.toString(job.cronExpression, { verbose: true });
                 const nextRunDate = new Date(job.nextRunAt).toLocaleString();
                 nextRunTimeDisplay = `<span title="${cronDescription}" class="font-bold">${nextRunDate}</span>`;
             } catch (e) {
-                nextRunTimeDisplay = '<span class="text-red-500 font-bold">Invalid CRON</span>';
-                cronWarning = `<div class="text-xs text-red-500 flex items-center mt-2 p-2 bg-red-50 rounded-lg">${renderIcon('alert-triangle', 'w-4 h-4 mr-1')} Invalid CRON expression.</div>`;
-                nextRunColor = 'text-red-500';
+                nextRunTimeDisplay = '<span class="text-rose-500 font-bold">Invalid CRON</span>';
+                cronWarning = `<div class="text-xs text-rose-500 flex items-center mt-2 p-2 bg-rose-500/10 rounded-xl border border-rose-500/20">${renderIcon('alert-triangle', 'w-4 h-4 mr-1.5')} Invalid CRON expression.</div>`;
+                nextRunColor = 'text-rose-500';
             }
         } else if (job.nextRunAt === 0) {
-            nextRunTimeDisplay = '<span class="text-red-500 font-bold">Invalid CRON</span>';
-            cronWarning = `<div class="text-xs text-red-500 flex items-center mt-2 p-2 bg-red-50 rounded-lg">${renderIcon('alert-triangle', 'w-4 h-4 mr-1')} Invalid CRON expression.</div>`;
-            nextRunColor = 'text-red-500';
+            nextRunTimeDisplay = '<span class="text-rose-500 font-bold">Invalid CRON</span>';
+            cronWarning = `<div class="text-xs text-rose-500 flex items-center mt-2 p-2 bg-rose-500/10 rounded-xl border border-rose-500/20">${renderIcon('alert-triangle', 'w-4 h-4 mr-1.5')} Invalid CRON expression.</div>`;
+            nextRunColor = 'text-rose-500';
         }
 
         // Show pre-run notification info if configured (job.notifyBeforeSeconds)
@@ -331,95 +357,92 @@ function renderJobList(jobs) {
                 const nbShort = formatSecondsToShort(job.notifyBeforeSeconds);
                 if (job.nextRunAt && job.nextRunAt > 0) {
                     const notifyAt = new Date(job.nextRunAt - job.notifyBeforeSeconds * 1000).toLocaleString();
-                    notifyHtml = `<div class="mt-3 text-sm text-indigo-700 flex items-center">${renderIcon('bell', 'w-4 h-4 mr-2 text-indigo-500')}Notify Before: <span class="font-semibold ml-2">${escapeHtml(nbShort)}</span> — will notify at <span class="ml-2 font-mono bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded-md text-xs">${escapeHtml(notifyAt)}</span></div>`;
+                    notifyHtml = `<div class="mt-3 text-xs sm:text-sm text-teal-800 dark:text-teal-300 bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/70 dark:border-teal-800/60 p-2.5 rounded-xl flex items-center flex-wrap gap-1.5">${renderIcon('bell', 'w-4 h-4 mr-1 text-teal-600 dark:text-teal-400')}Notify Before: <span class="font-semibold">${escapeHtml(nbShort)}</span> — will notify at <span class="font-mono bg-teal-100 dark:bg-teal-900/60 text-teal-900 dark:text-teal-200 px-2 py-0.5 rounded-md text-xs">${escapeHtml(notifyAt)}</span></div>`;
                 } else {
-                    notifyHtml = `<div class="mt-3 text-sm text-indigo-700 flex items-center">${renderIcon('bell', 'w-4 h-4 mr-2 text-indigo-500')}Notify Before: <span class="font-semibold ml-2">${escapeHtml(nbShort)}</span></div>`;
+                    notifyHtml = `<div class="mt-3 text-xs sm:text-sm text-teal-800 dark:text-teal-300 bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/70 dark:border-teal-800/60 p-2.5 rounded-xl flex items-center">${renderIcon('bell', 'w-4 h-4 mr-1.5 text-teal-600 dark:text-teal-400')}Notify Before: <span class="font-semibold ml-1.5">${escapeHtml(nbShort)}</span></div>`;
                 }
             } catch (e) {
-                // If anything goes wrong, don't block rendering — show a minimal label
-                notifyHtml = `<div class="mt-3 text-sm text-gray-500">${renderIcon('bell', 'w-4 h-4 mr-2 text-gray-400')}Notify Before: configured</div>`;
+                notifyHtml = `<div class="mt-3 text-xs text-slate-500 flex items-center">${renderIcon('bell', 'w-3.5 h-3.5 mr-1.5 text-slate-400')}Notify Before: configured</div>`;
             }
         }
 
         // Show post-execution notification indicator
         let notifyExecBadge = '';
         if (job.notifyOnExecution) {
-            notifyExecBadge = `<span title="Post-execution notifications enabled" class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">${renderIcon('bell-ring', 'w-3 h-3 mr-1')} Notify</span>`;
+            notifyExecBadge = `<span title="Post-execution notifications enabled" class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/60">${renderIcon('bell-ring', 'w-3 h-3 mr-1')} Notify</span>`;
         }
 
         html += `
-            <div id="job-${escapeHtml(job.id)}" class="card bg-white p-6 rounded-2xl border-t-8 border-indigo-500 flex flex-col transition duration-300 hover:border-indigo-600">
-                <div class="flex justify-between items-start mb-4">
-                    <!-- Added flex-1 and min-w-0 to allow title to shrink and buttons to stay visible -->
-                    <h3 class="text-2xl font-extrabold text-gray-900 leading-tight flex-1 min-w-0 mr-4 flex items-center flex-wrap">
+            <div id="job-${escapeHtml(job.id)}" class="card bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col transition duration-200 hover:border-teal-500/50 dark:hover:border-teal-500/50 relative overflow-hidden group">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 to-emerald-500 opacity-60 group-hover:opacity-100 transition-opacity"></div>
+                <div class="flex justify-between items-start mb-3 pt-1">
+                    <h3 class="text-xl font-extrabold text-slate-900 dark:text-white leading-snug flex-1 min-w-0 mr-3 flex items-center flex-wrap">
                         ${escapeHtml(job.title)}
                         ${notifyExecBadge}
                     </h3>
-                    <!-- Added flex-shrink-0 to ensure buttons take priority space -->
-                    <div class="flex space-x-2">
-                        <button onclick="renderJobForm('${escapeHtml(job.id)}')" title="Edit Job" class="flex items-center p-1 rounded-lg hover:bg-blue-100 text-blue-500 hover:text-blue-700 transition text-sm font-medium">
-                            ${renderIcon('square-pen', 'w-4 h-4')}
-                            <span class="ml-1">Edit</span>
+                    <div class="flex space-x-1.5 flex-shrink-0">
+                        <button onclick="renderJobForm('${escapeHtml(job.id)}')" title="Edit Job" class="flex items-center px-2.5 py-1 rounded-lg text-slate-500 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-950/50 transition text-xs font-semibold">
+                            ${renderIcon('square-pen', 'w-3.5 h-3.5 mr-1')}
+                            <span>Edit</span>
                         </button>
-                        <button onclick="confirmDeleteJob('${escapeHtml(job.id)}', '${escapeHtml(job.title)}')" title="Delete Job" class="flex items-center p-1 rounded-lg hover:bg-red-100 text-red-500 hover:text-red-700 transition text-sm font-medium">
-                            ${renderIcon('trash-2', 'w-4 h-4')}
-                            <span class="ml-1">Delete</span>
+                        <button onclick="confirmDeleteJob('${escapeHtml(job.id)}', '${escapeHtml(job.title)}')" title="Delete Job" class="flex items-center px-2.5 py-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition text-xs font-semibold">
+                            ${renderIcon('trash-2', 'w-3.5 h-3.5 mr-1')}
+                            <span>Delete</span>
                         </button>
                     </div>
                 </div>
-                <p class="text-gray-500 mb-4 text-sm">${escapeHtml(job.description)}</p>
+                <p class="text-slate-500 dark:text-slate-400 mb-4 text-xs sm:text-sm line-clamp-2">${escapeHtml(job.description || 'No description provided.')}</p>
                 
-                <div class="grid grid-cols-2 gap-y-3 gap-x-4 mb-4 text-sm border-t border-b py-3 border-gray-100">
-                    
+                <div class="grid grid-cols-2 gap-y-2.5 gap-x-3 mb-4 text-xs sm:text-sm border-t border-b py-3 border-slate-100 dark:border-slate-800/80">
                     <div class="flex items-center ${nextRunColor} font-semibold">
-                        ${renderIcon('play-circle', 'w-4 h-4 mr-2 ' + nextRunColor.replace('text-', 'text-'))}
-                        Next Run: <span class="ml-2">${nextRunTimeDisplay}</span>
+                        ${renderIcon('play-circle', 'w-4 h-4 mr-2 ' + nextRunColor)}
+                        Next: <span class="ml-1.5">${nextRunTimeDisplay}</span>
                     </div>
 
-                    <div class="flex items-center text-gray-700">
-                        ${renderIcon('clock', 'w-4 h-4 mr-2 text-indigo-500')}
-                        <strong>Cron:</strong> <code class="ml-2 font-mono bg-indigo-50 text-indigo-800 px-2 py-0.5 rounded-md text-xs font-bold">${escapeHtml(job.cronExpression)}</code>
+                    <div class="flex items-center text-slate-700 dark:text-slate-300">
+                        ${renderIcon('clock', 'w-4 h-4 mr-2 text-teal-600 dark:text-teal-400')}
+                        <strong>Cron:</strong> <code class="ml-1.5 font-mono bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200/60 dark:border-teal-800/60 px-2 py-0.5 rounded-md text-xs font-bold">${escapeHtml(job.cronExpression)}</code>
                     </div>
                     
-                    <div class="flex items-center text-gray-500">
-                        ${renderIcon('calendar', 'w-4 h-4 mr-2 text-gray-400')}
-                        Created: <span class="ml-2">${createdAt}</span>
+                    <div class="flex items-center text-slate-500 dark:text-slate-400 text-xs">
+                        ${renderIcon('calendar', 'w-3.5 h-3.5 mr-1.5 text-slate-400')}
+                        Created: <span class="ml-1">${createdAt}</span>
                     </div>
                     ${updatedDifferent ? `
-                    <div class="flex items-center text-gray-500">
-                        ${renderIcon('edit-3', 'w-4 h-4 mr-2 text-gray-400')}
-                        Last Modified: <span class="ml-2">${escapeHtml(updatedAt)}</span>
+                    <div class="flex items-center text-slate-500 dark:text-slate-400 text-xs">
+                        ${renderIcon('edit-3', 'w-3.5 h-3.5 mr-1.5 text-slate-400')}
+                        Modified: <span class="ml-1">${escapeHtml(updatedAt)}</span>
                     </div>
-                    ` : ''}
-                    <div class="flex items-center text-red-500 font-bold">
-                        ${renderIcon('x-circle', 'w-4 h-4 mr-2 text-red-400')} Skip Count: <span id="skip-count-${escapeHtml(job.id)}" class="ml-2 font-extrabold text-red-600">${job.skipCount}</span>
+                    ` : `
+                    <div class="flex items-center text-amber-600 dark:text-amber-400 font-semibold text-xs">
+                        ${renderIcon('skip-forward', 'w-3.5 h-3.5 mr-1.5 text-amber-500')} Skip Count: <span id="skip-count-${escapeHtml(job.id)}" class="ml-1 font-bold text-amber-700 dark:text-amber-300">${job.skipCount}</span>
                     </div>
+                    `}
                 </div> 
                 ${cronWarning}
                 ${notifyHtml}
 
-                <details class="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                    <summary class="font-bold cursor-pointer text-sm flex items-center text-gray-700 hover:text-indigo-600 transition">
-                        ${renderIcon('code', 'w-5 h-5 mr-2 text-indigo-500')} Script Content (View)
+                <details class="mb-4 p-3.5 bg-slate-50/80 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800">
+                    <summary class="font-semibold cursor-pointer text-xs sm:text-sm flex items-center text-slate-700 dark:text-slate-300 hover:text-teal-600 dark:hover:text-teal-400 transition">
+                        ${renderIcon('code', 'w-4 h-4 mr-2 text-teal-600 dark:text-teal-400')} Script Content (View)
                     </summary>
-                    <!-- Use a textarea so CodeMirror can render a read-only, dark themed viewer with line numbers -->
                     <textarea id="script-view-${escapeHtml(job.id)}" class="script-view mt-3 text-xs p-0 bg-transparent border-0 font-mono" rows="8" readonly>${escapeHtml(job.scriptContent)}</textarea>
                 </details>
                 
                 <!-- Action buttons (Manual Run & Skip) -->
-                <div class="mt-auto flex space-x-3 pt-4 border-t border-gray-100">
-                    <button onclick="handleManualRun('${escapeHtml(job.id)}', '${escapeHtml(job.title)}')" class="flex-1 px-4 py-2 text-sm text-indigo-800 bg-indigo-100 font-semibold rounded-xl hover:bg-indigo-200 transition duration-150 flex items-center justify-center shadow-md">
-                        ${renderIcon('zap', 'w-4 h-4 mr-2')} Run Now
+                <div class="mt-auto flex space-x-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button onclick="handleManualRun('${escapeHtml(job.id)}', '${escapeHtml(job.title)}')" class="flex-1 px-4 py-2 text-xs sm:text-sm text-teal-800 dark:text-teal-200 bg-teal-50 dark:bg-teal-950/60 border border-teal-200/80 dark:border-teal-800/60 font-bold rounded-xl hover:bg-teal-100 dark:hover:bg-teal-900/60 transition duration-150 flex items-center justify-center shadow-sm">
+                        ${renderIcon('zap', 'w-3.5 h-3.5 mr-1.5 text-teal-600 dark:text-teal-400')} Run Now
                     </button>
-                    <button onclick="handleSkipJob('${escapeHtml(job.id)}')" class="flex-1 px-4 py-2 text-sm text-yellow-800 bg-yellow-100 font-semibold rounded-xl hover:bg-yellow-200 transition duration-150 flex items-center justify-center shadow-md">
-                        ${renderIcon('chevrons-right', 'w-4 h-4 mr-2')} Skip Next
+                    <button onclick="handleSkipJob('${escapeHtml(job.id)}')" class="flex-1 px-4 py-2 text-xs sm:text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/60 font-bold rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/50 transition duration-150 flex items-center justify-center shadow-sm">
+                        ${renderIcon('chevrons-right', 'w-3.5 h-3.5 mr-1.5 text-amber-600 dark:text-amber-400')} Skip Next
                     </button>
                 </div>
                 
-                <!-- Execution History Section (Now a Modal Trigger) -->
-                <div class="mt-4 pt-4 border-t border-gray-200">
-                    <button onclick="showHistoryModal('${escapeHtml(job.id)}', '${escapeHtml(job.title)}')" class="w-full px-4 py-2 text-sm text-gray-700 bg-gray-100 font-semibold rounded-xl hover:bg-gray-200 transition duration-150 flex items-center justify-center shadow-md">
-                        ${renderIcon('history', 'w-4 h-4 mr-2')} View Execution History (Last 10)
+                <!-- Execution History Section (Modal Trigger) -->
+                <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button onclick="showHistoryModal('${escapeHtml(job.id)}', '${escapeHtml(job.title)}')" class="w-full px-4 py-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700/80 font-semibold rounded-xl transition duration-150 flex items-center justify-center shadow-sm">
+                        ${renderIcon('history', 'w-3.5 h-3.5 mr-2 text-slate-500 dark:text-slate-400')} View Execution History (Last 10)
                     </button>
                 </div>
 
@@ -494,25 +517,35 @@ function getJobById(jobId) {
 }
 
 // NEW: Function to add key/value inputs for EnvVars (Feature 3)
+window.setCronPreset = function (expr) {
+    const input = document.getElementById('cronExpression');
+    if (input) {
+        input.value = expr;
+        input.dispatchEvent(new Event('input'));
+    }
+};
+
 function addEnvVarInput(key = '', value = '', isNew = false) {
     const container = document.getElementById('env-vars-container');
     if (!container) return;
 
     const div = document.createElement('div');
-    div.className = 'flex space-x-3 items-center';
-    // Use crypto.randomUUID for unique key in the DOM, not for API payload
+    div.className = 'flex items-center space-x-2.5';
     const uniqueId = crypto.randomUUID();
     div.innerHTML = `
-        <input type="text" id="env-key-${uniqueId}" name="env-key" placeholder="KEY (e.g., API_TOKEN)" value="${escapeHtml(key)}" class="input-style flex-1 bg-white">
-        <span class="text-xl font-bold text-gray-400">=</span>
-        <input type="text" id="env-value-${uniqueId}" name="env-value" placeholder="VALUE (e.g., xyz123)" value="${escapeHtml(value)}" class="input-style flex-1 bg-white">
-        <button type="button" onclick="this.parentNode.remove()" title="Remove Variable" class="p-2 text-red-500 hover:text-red-700 transition rounded-full hover:bg-red-50">
-            ${renderIcon('x', 'w-4 h-4')}
+        <div class="flex-1">
+            <input type="text" id="env-key-${uniqueId}" name="env-key" placeholder="KEY (e.g., API_TOKEN)" value="${escapeHtml(key)}" class="input-style font-mono text-xs">
+        </div>
+        <span class="text-sm font-bold text-slate-400 dark:text-slate-500">=</span>
+        <div class="flex-1">
+            <input type="text" id="env-value-${uniqueId}" name="env-value" placeholder="VALUE (e.g., secret123)" value="${escapeHtml(value)}" class="input-style font-mono text-xs">
+        </div>
+        <button type="button" onclick="this.closest('.flex').remove()" title="Remove Variable" class="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition">
+            ${renderIcon('trash-2', 'w-4 h-4')}
         </button>
     `;
     container.appendChild(div);
 
-    // Focus on the key input for new rows
     if (isNew) {
         document.getElementById(`env-key-${uniqueId}`).focus();
     }
@@ -543,105 +576,143 @@ async function renderJobForm(jobId = null) {
     }
 
     contentArea.innerHTML = `
-        <div class="w-full max-w-4xl p-8 bg-white rounded-2xl card space-y-8">
-            <h2 class="text-3xl font-extrabold text-gray-800">${isEdit ? 'Edit Job' : 'Create New Job'}</h2>
+        <div class="w-full max-w-4xl p-6 sm:p-8 bg-white dark:bg-slate-900 rounded-3xl card border border-slate-200 dark:border-slate-800 shadow-xl space-y-6 relative overflow-hidden">
+            <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-500 to-emerald-500"></div>
             
-            <form id="job-form" onsubmit="event.preventDefault(); handleJobSubmit(event, '${jobId || ''}')" class="w-full">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">${isEdit ? 'Edit Automation Job' : 'Create Automation Job'}</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">${isEdit ? 'Update job schedule, script, and notification rules' : 'Set up a new recurring schedule and script payload'}</p>
+                </div>
+                <button type="button" onclick="renderDashboard()" class="px-3.5 py-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold rounded-xl transition flex items-center shadow-sm">
+                    ${renderIcon('arrow-left', 'w-3.5 h-3.5 mr-1.5')} Back to List
+                </button>
+            </div>
+            
+            <form id="job-form" onsubmit="event.preventDefault(); handleJobSubmit(event, '${jobId || ''}')" class="w-full space-y-6">
                 
-                <div class="mb-8 p-4 border rounded-xl bg-gray-50">
-                    <label class="block text-xl font-bold text-indigo-700 mb-3 border-b border-indigo-200 pb-2 flex items-center">
-                        ${renderIcon('list-checks', 'w-6 h-6 mr-2')} Core Details
-                    </label>
-                    <div class="mb-4">
-                        <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
-                        <input type="text" id="title" name="title" value="${escapeHtml(jobData.title)}" class="mt-1 input-style" required>
+                <!-- Core Details & Schedule Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <!-- Left Column: Title & Description -->
+                    <div class="space-y-4">
+                        <div>
+                            <label for="title" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Job Title <span class="text-rose-500">*</span></label>
+                            <input type="text" id="title" name="title" value="${escapeHtml(jobData.title)}" class="input-style" placeholder="e.g. Database Backup & Sync" required>
+                        </div>
+                        <div>
+                            <label for="description" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">Description</label>
+                            <textarea id="description" name="description" rows="3" class="input-style resize-none" placeholder="Brief summary of what this job does...">${escapeHtml(jobData.description)}</textarea>
+                        </div>
                     </div>
-                    <div class="mb-4">
-                        <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
-                        <textarea id="description" name="description" rows="2" class="mt-1 input-style">${escapeHtml(jobData.description)}</textarea>
-                    </div>
-                    <div class="mb-4">
-                        <label for="cronExpression" class="block text-sm font-medium text-gray-700">CRON Expression (6 fields: second, minute, hour, day of month, month, day of week)</label>
-                        <input type="text" id="cronExpression" name="cronExpression" value="${escapeHtml(jobData.cronExpression)}" class="mt-1 input-style font-mono text-base" required>
-                        <p id="cron-description" class="text-sm mt-2 text-indigo-600 italic font-semibold flex items-center">${renderIcon('calendar-search', 'w-4 h-4 mr-1')}</p>
-                    </div>
-                    <div class="mb-4">
-                        <div class="flex items-center space-x-2">
-                            <label for="notifyBefore" class="block text-sm font-medium text-gray-700">Pre-run Notification (optional)</label>
-                            <!-- Tooltip trigger -->
-                            <div class="relative group inline-block" aria-hidden="true">
-                                <button type="button" class="p-1 text-indigo-500 hover:text-indigo-700 rounded-full" tabindex="-1" aria-label="Notify format help">
-                                    ${renderIcon('info', 'w-4 h-4')}
-                                </button>
-                                <!-- Tooltip box -->
-                                <div class="pointer-events-none absolute left-6 top-0 z-50 hidden group-hover:block group-focus:block w-72">
-                                    <div class="bg-gray-800 text-white text-xs rounded-md p-3 shadow-lg">
-                                        <div class="font-semibold mb-1">Allowed formats</div>
-                                        <div class="text-[13px] leading-snug">Use a number followed by a unit: <strong>s</strong> (seconds), <strong>m</strong> (minutes), <strong>h</strong> (hours), <strong>d</strong> (days). You may combine units, for example:</div>
-                                        <ul class="mt-2 list-disc list-inside text-[13px]">
-                                            <li><code class="bg-gray-700 px-1 rounded">30s</code> — 30 seconds</li>
-                                            <li><code class="bg-gray-700 px-1 rounded">5m</code> — 5 minutes</li>
-                                            <li><code class="bg-gray-700 px-1 rounded">2h</code> — 2 hours</li>
-                                            <li><code class="bg-gray-700 px-1 rounded">1d</code> — 1 day</li>
-                                            <li><code class="bg-gray-700 px-1 rounded">1d2h30m</code> — combined (1 day, 2 hours, 30 minutes)</li>
-                                        </ul>
-                                        <div class="mt-2 text-yellow-200 text-[12px]">Note: Intended for jobs that recur &gt; 24 hours; the server will validate and may reject shorter schedules.</div>
-                                    </div>
-                                </div>
+
+                    <!-- Right Column: CRON Schedule -->
+                    <div class="space-y-3 flex flex-col justify-between">
+                        <div>
+                            <label for="cronExpression" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">CRON Expression (6 fields) <span class="text-rose-500">*</span></label>
+                            <input type="text" id="cronExpression" name="cronExpression" value="${escapeHtml(jobData.cronExpression)}" class="input-style font-mono text-sm" placeholder="* * * * * *" required>
+                            
+                            <!-- Quick Preset Chips -->
+                            <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                                <span class="text-[11px] font-medium text-slate-400 mr-1">Presets:</span>
+                                <button type="button" onclick="setCronPreset('* * * * * *')" class="px-2 py-0.5 text-[11px] font-mono rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-950/60 hover:text-teal-700 dark:hover:text-teal-300 border border-slate-200/80 dark:border-slate-700/80 transition">Every sec</button>
+                                <button type="button" onclick="setCronPreset('0 * * * * *')" class="px-2 py-0.5 text-[11px] font-mono rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-950/60 hover:text-teal-700 dark:hover:text-teal-300 border border-slate-200/80 dark:border-slate-700/80 transition">Every min</button>
+                                <button type="button" onclick="setCronPreset('0 0 * * * *')" class="px-2 py-0.5 text-[11px] font-mono rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-950/60 hover:text-teal-700 dark:hover:text-teal-300 border border-slate-200/80 dark:border-slate-700/80 transition">Every hour</button>
+                                <button type="button" onclick="setCronPreset('0 0 0 * * *')" class="px-2 py-0.5 text-[11px] font-mono rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-950/60 hover:text-teal-700 dark:hover:text-teal-300 border border-slate-200/80 dark:border-slate-700/80 transition">Midnight</button>
                             </div>
                         </div>
-                        <input type="text" id="notifyBefore" name="notifyBefore" placeholder="e.g. 5m, 1h, 1d or 1d2h30m" value="${escapeHtml(formatSecondsToShort(jobData.notifyBeforeSeconds || 0))}" class="mt-1 input-style" />
-                        <p id="notify-info" class="text-xs text-gray-500 mt-1">If set, the bot will send a Telegram reminder <strong>before</strong> the job runs.</p>
-                        <p id="notify-warning" class="text-xs mt-1 hidden"></p>
-                    </div>
 
-                    <div class="mb-4 flex items-center">
-                        <input type="checkbox" id="notifyOnExecution" name="notifyOnExecution" class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300" ${jobData.notifyOnExecution ? 'checked' : ''}>
-                        <label for="notifyOnExecution" class="ml-2 block text-sm font-medium text-gray-700">
-                            Notify on Execution (Telegram)
+                        <!-- Live CRON preview card -->
+                        <div class="p-3 rounded-xl bg-teal-50/70 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-800/60 flex items-start space-x-2">
+                            <span class="text-teal-600 dark:text-teal-400 mt-0.5">${renderIcon('clock', 'w-4 h-4')}</span>
+                            <p id="cron-description" class="text-xs font-semibold text-teal-900 dark:text-teal-200 flex-1 leading-snug">Parsing CRON expression...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notifications & Reminders Panel -->
+                <div class="p-4 sm:p-5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 space-y-3">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-teal-600 dark:text-teal-400">${renderIcon('bell', 'w-4 h-4')}</span>
+                        <label class="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Telegram Notifications & Reminders</label>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                        <div>
+                            <label for="notifyBefore" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Pre-run Reminder</label>
+                            <input type="text" id="notifyBefore" name="notifyBefore" placeholder="e.g. 5m, 1h, 1d" value="${escapeHtml(formatSecondsToShort(jobData.notifyBeforeSeconds || 0))}" class="input-style font-mono text-xs sm:text-sm" />
+                            <p id="notify-info" class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Leave empty or set reminder lead time (e.g., <code class="text-teal-600 dark:text-teal-400 font-bold">10m</code>, <code class="text-teal-600 dark:text-teal-400 font-bold">1h</code>)</p>
+                            <p id="notify-warning" class="text-xs mt-1 hidden"></p>
+                        </div>
+
+                        <div class="flex items-center pt-2 sm:pt-4">
+                            <label class="relative flex items-center cursor-pointer select-none">
+                                <input type="checkbox" id="notifyOnExecution" name="notifyOnExecution" class="w-4 h-4 text-teal-600 rounded focus:ring-teal-500 border-slate-300 dark:border-slate-700 cursor-pointer" ${jobData.notifyOnExecution ? 'checked' : ''}>
+                                <div class="ml-2.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                    <span>Notify after execution</span>
+                                    <p class="text-[11px] font-normal text-slate-500 dark:text-slate-400">Send Telegram alert with execution status (Success/Failure)</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shell Script Section -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center">
+                            ${renderIcon('terminal', 'w-4 h-4 mr-1.5 text-teal-600 dark:text-teal-400')} Shell Script Content
                         </label>
+                        <span class="text-[11px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700/80">/bin/bash</span>
                     </div>
-                    <p class="text-xs text-gray-500 ml-7 -mt-2 mb-4">If checked, the bot will send a notification <strong>after</strong> the job completes (Success or Failure).</p>
+                    
+                    <div class="rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
+                        <div class="bg-slate-100/90 dark:bg-slate-950 px-4 py-2 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
+                            <div class="flex items-center space-x-1.5">
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700 inline-block"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700 inline-block"></span>
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700 inline-block"></span>
+                                <span class="text-xs font-mono text-slate-500 dark:text-slate-400 ml-2">payload.sh</span>
+                            </div>
+                            <span class="text-[11px] text-slate-400 font-mono">Syntax Highlighted</span>
+                        </div>
+                        <textarea id="scriptContent" name="scriptContent" rows="8" class="input-style font-mono text-sm resize-none border-0 rounded-none" required>${escapeHtml(jobData.scriptContent)}</textarea>
+                    </div>
                 </div>
 
-                <div class="mb-8 p-4 border rounded-xl bg-gray-50">
-                    <label class="block text-xl font-bold text-indigo-700 mb-3 border-b border-indigo-200 pb-2 flex items-center">
-                        ${renderIcon('terminal', 'w-6 h-6 mr-2')} Script Content
-                    </label>
-                    <p class="text-sm text-gray-500 mb-2">The script will be executed using <code class="bg-gray-200 px-1 rounded text-xs font-mono">/bin/bash -c "..."</code></p>
-                    <textarea id="scriptContent" name="scriptContent" rows="10" class="mt-1 input-style font-mono text-sm resize-none" required>${escapeHtml(jobData.scriptContent)}</textarea>
-                </div>
-                
                 <!-- Environment Variables Section -->
-                <div class="mb-8 p-4 border rounded-xl bg-gray-50">
-                    <label class="block text-xl font-bold text-indigo-700 mb-3 border-b border-indigo-200 pb-2 flex items-center">
-                        ${renderIcon('lock', 'w-6 h-6 mr-2')} Environment Variables (Optional)
-                    </label>
-                    <p class="text-sm text-gray-500 mb-4">Define key-value pairs that will be available as shell environment variables. Use this for secure tokens/secrets.</p>
-                    <div id="env-vars-container" class="space-y-4">
-                        <!-- Key/Value inputs will be appended here by JS -->
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <label class="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center">
+                                ${renderIcon('lock', 'w-4 h-4 mr-1.5 text-teal-600 dark:text-teal-400')} Environment Variables
+                            </label>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400">Injected securely into execution environment</p>
+                        </div>
+                        <button type="button" onclick="addEnvVarInput('', '', true)" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition flex items-center shadow-sm">
+                            ${renderIcon('plus', 'w-3.5 h-3.5 mr-1')} Add Variable
+                        </button>
                     </div>
-                    <button type="button" onclick="addEnvVarInput('', '', true)" class="mt-4 px-4 py-2 text-sm flex items-center bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition duration-150 shadow-md">
-                        ${renderIcon('plus', 'w-4 h-4 mr-1')} Add Variable
-                    </button>
+                    <div id="env-vars-container" class="space-y-2 pt-1">
+                        <!-- Appended rows -->
+                    </div>
                 </div>
 
                 ${isEdit ? `
-                    <div class="mb-8 p-4 border rounded-xl bg-gray-50">
-                        <label class="block text-xl font-bold text-indigo-700 mb-3 border-b border-indigo-200 pb-2 flex items-center">
-                            ${renderIcon('chevrons-right', 'w-6 h-6 mr-2')} Skip Count
-                        </label>
-                        <p class="text-sm text-gray-500 mb-2">The number of times the next scheduled execution will be skipped before running.</p>
-                        <input type="number" id="skipCount" name="skipCount" value="${jobData.skipCount}" min="0" class="mt-1 input-style w-24" required>
+                    <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800">
+                        <div>
+                            <label for="skipCount" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Skip Next Trigger</label>
+                            <p class="text-[11px] text-slate-500 dark:text-slate-400">Number of upcoming scheduled executions to skip</p>
+                        </div>
+                        <input type="number" id="skipCount" name="skipCount" value="${jobData.skipCount}" min="0" class="input-style w-24 font-mono text-center" required>
                     </div>
                 ` : ''}
 
-                <div class="flex justify-between items-center pt-4 border-t mt-6">
-                    <button type="button" onclick="renderDashboard()" class="px-5 py-2 text-gray-600 font-semibold rounded-xl hover:bg-gray-100 transition duration-150 flex items-center">
-                        ${renderIcon('arrow-left', 'w-5 h-5 mr-2')} Back to List
+                <div class="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <button type="button" onclick="renderDashboard()" class="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white text-xs sm:text-sm font-semibold rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition duration-150 flex items-center">
+                        ${renderIcon('arrow-left', 'w-4 h-4 mr-1.5')} Cancel
                     </button>
-                    <button type="submit" id="submit-button" class="primary-btn px-6 py-3 flex items-center text-white font-bold rounded-xl shadow-lg transition duration-300">
-                        ${isEdit ? renderIcon('save', 'w-5 h-5 mr-2') + ' Save Changes' : renderIcon('send', 'w-5 h-5 mr-2') + ' Create Job'}
+                    <button type="submit" id="submit-button" class="primary-btn px-6 py-2.5 flex items-center text-white font-bold rounded-xl shadow-lg transition duration-200 text-xs sm:text-sm">
+                        ${isEdit ? renderIcon('save', 'w-4 h-4 mr-2') + ' Save Changes' : renderIcon('send', 'w-4 h-4 mr-2') + ' Create Job'}
                     </button>
                 </div>
             </form>
@@ -652,19 +723,18 @@ async function renderJobForm(jobId = null) {
     const updateCronDescription = () => {
         const cronInput = document.getElementById('cronExpression').value;
         const descElement = document.getElementById('cron-description');
+        if (!descElement) return;
 
         // Clear previous state and add icon
-        descElement.innerHTML = `${renderIcon('calendar-search', 'w-4 h-4 mr-1')}`;
+        descElement.innerHTML = `${renderIcon('clock', 'w-4 h-4 mr-1.5 inline')}`;
 
         try {
             const descriptionText = cronstrue.toString(cronInput);
-            descElement.innerHTML += descriptionText;
-            descElement.classList.remove('text-red-500');
-            descElement.classList.add('text-indigo-600');
+            descElement.innerHTML += ` <span>${descriptionText}</span>`;
+            descElement.className = 'text-xs font-semibold text-teal-900 dark:text-teal-200 flex-1 leading-snug';
         } catch (e) {
-            descElement.innerHTML += 'Error: Invalid CRON expression format. Must include 6 fields.';
-            descElement.classList.remove('text-indigo-600');
-            descElement.classList.add('text-red-500');
+            descElement.innerHTML += ' <span class="text-rose-500 font-bold">Invalid CRON format (must include 6 fields)</span>';
+            descElement.className = 'text-xs font-semibold text-rose-600 dark:text-rose-400 flex-1 leading-snug';
         }
     };
 
@@ -924,35 +994,42 @@ function renderHistoryListInModal(history) {
     const contentDiv = document.getElementById('history-modal-body');
 
     if (history.length === 0) {
-        contentDiv.innerHTML = `<p class="text-md text-gray-500 text-center py-6">${renderIcon('calendar-check', 'w-6 h-6 mx-auto mb-2')} No execution records found yet.</p>`;
+        contentDiv.innerHTML = `<div class="text-center py-10">
+            <div class="p-3 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-2xl w-12 h-12 mx-auto mb-2 flex items-center justify-center">
+                ${renderIcon('calendar-check', 'w-6 h-6')}
+            </div>
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">No execution records found yet</p>
+            <p class="text-xs text-slate-400 mt-0.5">Executions will be recorded here when triggered automatically or manually.</p>
+        </div>`;
         return;
     }
 
     // Max height and scroll added to the content wrapper
-    let html = `<div class="space-y-4 max-h-[70vh] overflow-y-auto p-1">`;
+    let html = `<div class="space-y-3 max-h-[70vh] overflow-y-auto pr-1">`;
     history.forEach(exec => {
         const isSuccess = exec.status === 'Success';
-        const statusColor = isSuccess ? 'text-green-700' : 'text-red-700';
-        const bgColor = isSuccess ? 'bg-green-50' : 'bg-red-50';
+        const statusColor = isSuccess ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300';
+        const cardBg = isSuccess ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/70 dark:border-emerald-900/50' : 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200/70 dark:border-rose-900/50';
         const iconName = isSuccess ? 'check-circle' : 'x-circle';
+        const iconColor = isSuccess ? 'text-emerald-500' : 'text-rose-500';
         const startTime = new Date(exec.startTime).toLocaleTimeString();
         const fullDateTime = new Date(exec.startTime).toLocaleString();
         const durationSeconds = (exec.duration / 1000).toFixed(2);
         const exitCodeDisplay = exec.exitCode >= 0 ? exec.exitCode : 'N/A';
 
         html += `
-            <details class="p-3 rounded-xl ${bgColor} border border-gray-200 shadow-sm">
-                <summary class="text-sm font-bold flex justify-between items-center cursor-pointer hover:opacity-80 transition ${statusColor}">
-                    <div class="flex items-center">
-                        ${renderIcon(iconName, 'w-4 h-4 mr-2')} 
+            <details class="p-3.5 rounded-2xl ${cardBg} border shadow-sm transition">
+                <summary class="text-xs sm:text-sm font-bold flex justify-between items-center cursor-pointer hover:opacity-90 transition ${statusColor}">
+                    <div class="flex items-center space-x-2">
+                        <span class="${iconColor}">${renderIcon(iconName, 'w-4 h-4')}</span>
                         <span class="font-extrabold">${escapeHtml(exec.status)}</span>
-                        <span class="ml-4 text-gray-600 font-normal text-xs" title="${fullDateTime}">@ ${startTime}</span>
+                        <span class="text-slate-500 dark:text-slate-400 font-normal text-xs pl-2" title="${fullDateTime}">@ ${startTime}</span>
                     </div>
-                    <div class="text-gray-500 font-normal text-right text-xs">
-                        <span class="hidden sm:inline">Duration:</span> ${durationSeconds}s, Exit: ${exitCodeDisplay}
+                    <div class="text-slate-500 dark:text-slate-400 font-mono text-xs text-right">
+                        <span>${durationSeconds}s</span> &bull; <span>Exit ${exitCodeDisplay}</span>
                     </div>
                 </summary>
-                <pre class="mt-2 text-xs overflow-x-auto p-2 bg-white rounded-md text-gray-800 max-h-40 whitespace-pre-wrap border border-gray-100">${escapeHtml(exec.output || 'No output recorded.')}</pre>
+                <pre class="mt-3 text-xs overflow-x-auto p-3 bg-slate-900 dark:bg-slate-950 text-emerald-400 dark:text-emerald-300 rounded-xl font-mono max-h-48 whitespace-pre-wrap border border-slate-800 shadow-inner">${escapeHtml(exec.output || 'No output recorded.')}</pre>
             </details>
         `;
     });
@@ -960,7 +1037,7 @@ function renderHistoryListInModal(history) {
     contentDiv.innerHTML = html;
 }
 
-// --- CodeMirror Initialization Helpers (dark theme + line numbers) ---
+// --- CodeMirror Initialization Helpers (light & dark theme + line numbers) ---
 // initScriptViewers: initialize read-only viewers for job list items
 function initScriptViewers() {
     if (typeof CodeMirror === 'undefined') return;
@@ -973,7 +1050,6 @@ function initScriptViewers() {
         // If an editor was previously created for this jobId, clean it up
         if (window.viewerEditors[jobId]) {
             try {
-                // detach old editor and restore textarea (safe even if old textarea was removed)
                 window.viewerEditors[jobId].toTextArea();
             } catch (e) {
                 // ignore cleanup errors
@@ -983,7 +1059,7 @@ function initScriptViewers() {
         try {
             const cm = CodeMirror.fromTextArea(textarea, {
                 mode: 'shell',
-                theme: 'darcula',
+                theme: 'default',
                 lineNumbers: true,
                 readOnly: true,
                 viewportMargin: Infinity
@@ -1009,13 +1085,13 @@ function initScriptFormEditor() {
     try {
         window.cmFormEditor = CodeMirror.fromTextArea(ta, {
             mode: 'shell',
-            theme: 'darcula',
+            theme: 'default',
             lineNumbers: true,
             indentUnit: 2,
             lineWrapping: true
         });
         // Give a comfortable height for editing
-        window.cmFormEditor.setSize('100%', 300);
+        window.cmFormEditor.setSize('100%', 280);
     } catch (e) {
         console.debug('initScriptFormEditor failed:', e);
     }
@@ -1101,6 +1177,18 @@ function applyTheme(theme) {
             themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>';
         }
     }
+
+    // Refresh any active CodeMirror instances
+    setTimeout(() => {
+        if (window.cmFormEditor) {
+            try { window.cmFormEditor.refresh(); } catch (e) {}
+        }
+        if (window.viewerEditors) {
+            Object.values(window.viewerEditors).forEach(cm => {
+                try { cm.refresh(); } catch (e) {}
+            });
+        }
+    }, 50);
 }
 
 // Cycle through themes: system -> light -> dark -> system
@@ -1213,7 +1301,7 @@ function handleExport() {
 function handleDrop(event) {
     event.preventDefault();
     const zone = document.getElementById('drop-zone');
-    if (zone) zone.classList.remove('border-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/20');
+    if (zone) zone.classList.remove('border-teal-500', 'bg-teal-50/40', 'dark:bg-teal-950/30');
 
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
         const file = event.dataTransfer.files[0];
@@ -1237,8 +1325,8 @@ async function uploadConfigFile(file) {
     const originalContent = zone ? zone.innerHTML : '';
     if (zone) {
         zone.innerHTML = `<div class="flex flex-col items-center justify-center py-6">
-            ${renderIcon('loader-2', 'w-10 h-10 animate-spin text-indigo-500 mb-3')}
-            <span class="text-gray-600 dark:text-gray-300 font-semibold">Importing ${escapeHtml(file.name)}...</span>
+            ${renderIcon('loader-2', 'w-10 h-10 animate-spin text-teal-600 dark:text-teal-400 mb-3')}
+            <span class="text-slate-700 dark:text-slate-300 font-semibold text-sm">Importing ${escapeHtml(file.name)}...</span>
         </div>`;
     }
 

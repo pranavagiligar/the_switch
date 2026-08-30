@@ -1,158 +1,194 @@
 /* Dark Mode Overrides for Tailwind Classes */
 
-/* Ensure all white backgrounds adapt to dark mode */
+/* Ensure card backgrounds adapt cleanly */
 html.dark .bg-white {
     background-color: var(--bg-card) !important;
 }
 
-/* Text color overrides for better contrast */
-html.dark .text-gray-900 {
+/* Text color overrides for precision contrast */
+html.dark .text-gray-900,
+html.dark .text-slate-900 {
+    color: #f8fafc !important;
+}
+
+html.dark .text-gray-800,
+html.dark .text-slate-800 {
     color: #f1f5f9 !important;
 }
 
-html.dark .text-gray-800 {
-    color: #e2e8f0 !important;
-}
-
-html.dark .text-gray-700 {
+html.dark .text-gray-700,
+html.dark .text-slate-700 {
     color: #cbd5e1 !important;
 }
 
-html.dark .text-gray-600 {
+html.dark .text-gray-600,
+html.dark .text-slate-600 {
     color: #94a3b8 !important;
 }
 
-html.dark .text-gray-500 {
+html.dark .text-gray-500,
+html.dark .text-slate-500 {
     color: #64748b !important;
 }
 
-html.dark .text-gray-400 {
+html.dark .text-gray-400,
+html.dark .text-slate-400 {
     color: #475569 !important;
 }
 
 /* Border overrides */
-html.dark .border-gray-100 {
+html.dark .border-gray-100,
+html.dark .border-slate-100 {
     border-color: var(--border-color) !important;
 }
 
-html.dark .border-gray-200 {
-    border-color: var(--border-light) !important;
+html.dark .border-gray-200,
+html.dark .border-slate-200 {
+    border-color: #1e293b !important;
 }
 
-html.dark .border-gray-300 {
-    border-color: #475569 !important;
+html.dark .border-gray-300,
+html.dark .border-slate-300 {
+    border-color: #334155 !important;
 }
 
-/* Background overrides for various gray shades */
-html.dark .bg-gray-50 {
-    background-color: #334155 !important;
+/* Background overrides for neutral surface shades */
+html.dark .bg-gray-50,
+html.dark .bg-slate-50 {
+    background-color: #0c1322 !important;
 }
 
-html.dark .bg-gray-100 {
-    background-color: #475569 !important;
+html.dark .bg-gray-100,
+html.dark .bg-slate-100 {
+    background-color: #162032 !important;
 }
 
-html.dark .bg-gray-200 {
-    background-color: #64748b !important;
+html.dark .bg-gray-200,
+html.dark .bg-slate-200 {
+    background-color: #1e293b !important;
 }
 
-/* Indigo color adjustments for dark mode */
-html.dark .bg-indigo-50 {
-    background-color: #312e81 !important;
+/* Teal & Emerald color adjustments for dark mode */
+html.dark .bg-teal-50 {
+    background-color: rgba(20, 184, 166, 0.1) !important;
 }
 
-html.dark .bg-indigo-100 {
-    background-color: #3730a3 !important;
+html.dark .bg-teal-100 {
+    background-color: rgba(20, 184, 166, 0.18) !important;
 }
 
-html.dark .text-indigo-600 {
-    color: #a5b4fc !important;
+html.dark .text-teal-600,
+html.dark .text-teal-700,
+html.dark .text-teal-800 {
+    color: #2dd4bf !important;
 }
 
-html.dark .text-indigo-700 {
-    color: #818cf8 !important;
-}
-
-html.dark .text-indigo-800 {
-    color: #c7d2fe !important;
+html.dark .border-teal-200 {
+    border-color: rgba(20, 184, 166, 0.3) !important;
 }
 
 /* Hover states */
-html.dark .hover\:bg-gray-100:hover {
-    background-color: #475569 !important;
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-slate-100:hover {
+    background-color: #1e293b !important;
 }
 
-html.dark .hover\:bg-gray-200:hover {
-    background-color: #64748b !important;
+html.dark .hover\:bg-gray-200:hover,
+html.dark .hover\:bg-slate-200:hover {
+    background-color: #283548 !important;
 }
 
-html.dark .hover\:bg-gray-300:hover {
-    background-color: #94a3b8 !important;
+html.dark .hover\:bg-teal-100:hover {
+    background-color: rgba(20, 184, 166, 0.25) !important;
 }
 
-html.dark .hover\:bg-indigo-100:hover {
-    background-color: #3730a3 !important;
-}
-
-html.dark .hover\:bg-indigo-200:hover {
-    background-color: #4338ca !important;
-}
-
-html.dark .hover\:text-indigo-600:hover {
-    color: #a5b4fc !important;
+html.dark .hover\:text-teal-600:hover {
+    color: #5eead4 !important;
 }
 
 /* Code blocks and monospace elements */
 html.dark code {
-    background-color: #1e293b !important;
-    color: #e2e8f0 !important;
+    background-color: #0c1322 !important;
+    color: #5eead4 !important;
+    border: 1px solid #1e293b;
 }
 
 html.dark .font-mono {
-    color: #cbd5e1;
+    color: #e2e8f0;
 }
 
-/* Ensure proper contrast for status badges */
-html.dark .bg-green-100 {
-    background-color: #065f46 !important;
+/* Status badges contrast */
+html.dark .bg-green-50,
+html.dark .bg-emerald-50 {
+    background-color: rgba(16, 185, 129, 0.1) !important;
 }
 
-html.dark .text-green-800 {
-    color: #86efac !important;
+html.dark .bg-green-100,
+html.dark .bg-emerald-100 {
+    background-color: rgba(16, 185, 129, 0.18) !important;
 }
 
-html.dark .border-green-200 {
-    border-color: #047857 !important;
+html.dark .text-green-600,
+html.dark .text-green-700,
+html.dark .text-green-800,
+html.dark .text-emerald-700 {
+    color: #34d399 !important;
 }
 
-html.dark .bg-red-50 {
-    background-color: #7f1d1d !important;
+html.dark .border-green-200,
+html.dark .border-emerald-200 {
+    border-color: rgba(16, 185, 129, 0.3) !important;
 }
 
-html.dark .text-red-500 {
-    color: #fca5a5 !important;
+/* Red / Failure badges */
+html.dark .bg-red-50,
+html.dark .bg-rose-50 {
+    background-color: rgba(244, 63, 94, 0.1) !important;
 }
 
-html.dark .text-red-600 {
-    color: #f87171 !important;
+html.dark .bg-red-100,
+html.dark .bg-rose-100 {
+    background-color: rgba(244, 63, 94, 0.18) !important;
 }
 
-html.dark .text-red-700 {
-    color: #fca5a5 !important;
+html.dark .text-red-500,
+html.dark .text-red-600,
+html.dark .text-red-700,
+html.dark .text-rose-600 {
+    color: #fb7185 !important;
 }
 
-html.dark .bg-yellow-100 {
-    background-color: #78350f !important;
+html.dark .border-red-200 {
+    border-color: rgba(244, 63, 94, 0.3) !important;
 }
 
-html.dark .text-yellow-800 {
-    color: #fde047 !important;
+/* Amber / Warning / Skip badges */
+html.dark .bg-yellow-50,
+html.dark .bg-amber-50 {
+    background-color: rgba(245, 158, 11, 0.1) !important;
 }
 
-/* Details/Summary elements */
+html.dark .bg-yellow-100,
+html.dark .bg-amber-100 {
+    background-color: rgba(245, 158, 11, 0.18) !important;
+}
+
+html.dark .text-yellow-700,
+html.dark .text-yellow-800,
+html.dark .text-amber-700,
+html.dark .text-amber-800 {
+    color: #fbbf24 !important;
+}
+
+html.dark .border-yellow-200,
+html.dark .border-amber-200 {
+    border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+/* Details/Summary collapsible containers */
 html.dark details {
-    background-color: #334155 !important;
-    border-color: #475569 !important;
+    background-color: #0c1322 !important;
+    border-color: #1e293b !important;
 }
 
 html.dark summary {
@@ -160,18 +196,22 @@ html.dark summary {
 }
 
 html.dark summary:hover {
-    color: #a5b4fc !important;
+    color: #2dd4bf !important;
 }
 
-/* Textarea and input elements in forms */
-html.dark textarea {
+/* Forms: Textarea, Select, Input */
+html.dark textarea,
+html.dark select,
+html.dark input[type="text"],
+html.dark input[type="password"],
+html.dark input[type="number"] {
     background-color: var(--input-bg) !important;
     color: var(--text-primary) !important;
     border-color: var(--input-border) !important;
 }
 
-html.dark select {
-    background-color: var(--input-bg) !important;
-    color: var(--text-primary) !important;
-    border-color: var(--input-border) !important;
+html.dark textarea:focus,
+html.dark select:focus,
+html.dark input:focus {
+    border-color: var(--accent-teal) !important;
 }

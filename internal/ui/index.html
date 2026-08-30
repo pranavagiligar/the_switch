@@ -5,8 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>The Switch - Scheduled Job Manager</title>
-    <!-- Load Tailwind CSS -->
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Load Tailwind CSS with class-based Dark Mode -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        };
+    </script>
     <!-- Load Lucide icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Load cronstrue library for human-readable CRON descriptions -->
@@ -22,35 +31,40 @@
     <link rel="icon" href="/static/favicon.png">
 </head>
 
-<body class="antialiased">
+<body class="antialiased font-sans">
 
     <!-- Main Application Container -->
     <div id="app" class="flex flex-col items-center main-container">
 
-        <!-- Header - Made it sticky and added a distinct shadow/color -->
+        <!-- Header - Sticky with subtle backdrop blur & refined border -->
         <header id="header-bar"
-            class="w-full fixed top-0 bg-white dark:bg-slate-800 shadow-lg z-30 transition-colors duration-300">
+            class="w-full fixed top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 shadow-sm z-30 transition-colors duration-300">
             <div
-                class="max-w-7xl mx-auto flex justify-between items-center px-4 sm:px-8 py-3 border-b border-gray-100 dark:border-gray-700">
+                class="max-w-7xl mx-auto flex justify-between items-center px-4 sm:px-8 py-3.5">
                 <h1
-                    class="text-2xl font-extrabold text-indigo-700 dark:text-indigo-400 tracking-tight flex items-center">
-                    <img src="/static/favicon.png" alt="Switch" class="h-8 w-8 mr-2"> The Switch
+                    class="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center group">
+                    <div class="relative flex items-center justify-center p-1.5 rounded-xl bg-teal-500/10 dark:bg-teal-400/10 border border-teal-500/20 dark:border-teal-400/20 mr-2.5 transition-transform group-hover:scale-105">
+                        <img src="/static/favicon.png" alt="Switch" class="h-6 w-6 sm:h-7 sm:w-7 object-contain">
+                        <span class="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
+                        </span>
+                    </div>
+                    <span class="bg-gradient-to-r from-teal-600 to-emerald-600 dark:from-teal-400 dark:to-emerald-300 bg-clip-text text-transparent">The Switch</span>
                     <span
-                        class="hidden sm:inline text-xs ml-4 px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 rounded-full font-medium">Job
-                        Manager</span>
+                        class="hidden sm:inline text-xs ml-3 px-2.5 py-0.5 bg-teal-50 dark:bg-teal-950/80 text-teal-700 dark:text-teal-300 rounded-full font-semibold border border-teal-200/60 dark:border-teal-800/60">Ops Engine</span>
                 </h1>
                 <div class="flex items-center space-x-3">
                     <button id="logout-button"
-                        class="hidden px-4 py-2 bg-red-500 text-white font-semibold rounded-lg shadow-lg hover:bg-red-600 transition duration-150"
+                        class="hidden px-3.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 font-semibold rounded-xl text-sm transition duration-150"
                         onclick="handleLogout()">
                         Logout
                     </button>
                     <!-- Settings Button (Hidden if logged out, handled by JS) -->
                     <button id="settings-button"
-                        class="hidden px-3 py-2 text-indigo-100 bg-indigo-600 hover:bg-indigo-500 rounded-lg transition duration-150 flex items-center"
+                        class="hidden p-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 rounded-xl transition duration-150 flex items-center justify-center shadow-sm"
                         onclick="openSettingsModal()" title="System Settings">
-                        <!-- Icon injected by JS or SVG here -->
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none"
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-teal-600 dark:text-teal-400" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path
                                 d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z">
@@ -63,7 +77,7 @@
         </header>
 
         <!-- Dynamic Content Area (Offset for sticky header) -->
-        <main id="content-area" class="w-full max-w-7xl flex justify-center items-start pt-24 pb-8 px-4 sm:px-8"></main>
+        <main id="content-area" class="w-full max-w-7xl flex justify-center items-start pt-24 pb-12 px-4 sm:px-8"></main>
 
     </div>
 
@@ -72,14 +86,19 @@
         class="hidden fixed inset-0 z-50 overflow-y-auto modal-overlay flex items-center justify-center"
         onclick="if (event.target === this) closeHistoryModal()">
         <div
-            class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl m-4 modal-content transform translate-y-0 opacity-100 transition-colors duration-300">
+            class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl m-4 modal-content transform translate-y-0 opacity-100 transition-colors duration-300">
             <!-- Modal Header -->
             <div
-                class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-indigo-50 dark:bg-indigo-900 rounded-t-2xl">
-                <h3 id="history-modal-title" class="text-xl font-extrabold text-indigo-700 dark:text-indigo-300">
-                    Execution History</h3>
+                class="p-5 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50/80 dark:bg-slate-800/60 rounded-t-2xl">
+                <div class="flex items-center space-x-2.5">
+                    <div class="p-2 bg-teal-500/10 dark:bg-teal-400/10 text-teal-600 dark:text-teal-400 rounded-xl">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                    </div>
+                    <h3 id="history-modal-title" class="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-slate-100">
+                        Execution History</h3>
+                </div>
                 <button onclick="closeHistoryModal()"
-                    class="p-2 rounded-full text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-800 transition">
+                    class="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                         class="w-5 h-5">
@@ -95,9 +114,9 @@
             </div>
 
             <!-- Modal Footer -->
-            <div class="p-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+            <div class="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 rounded-b-2xl flex justify-end">
                 <button onclick="closeHistoryModal()"
-                    class="px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition duration-150">
+                    class="px-5 py-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold rounded-xl hover:bg-slate-300 dark:hover:bg-slate-700 transition duration-150 text-sm">
                     Close
                 </button>
             </div>
@@ -106,27 +125,31 @@
 
     <!-- Settings Modal (Hidden by default) -->
     <div id="settings-modal"
-        class="hidden fixed inset-0 z-50 overflow-y-auto modal-overlay flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
+        class="hidden fixed inset-0 z-50 overflow-y-auto modal-overlay flex items-center justify-center bg-black/60 backdrop-blur-sm"
         onclick="if (event.target === this) closeSettingsModal()">
         <div
-            class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl m-4 modal-content transform translate-y-0 opacity-100 transition-colors duration-300">
+            class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl m-4 modal-content transform translate-y-0 opacity-100 transition-colors duration-300">
 
             <!-- Modal Header -->
             <div
-                class="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-indigo-900 rounded-t-2xl">
-                <h3 class="text-xl font-extrabold text-gray-800 dark:text-indigo-300 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 text-indigo-500" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path
-                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
-                        </path>
-                    </svg>
-                    System Settings
-                </h3>
+                class="p-5 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50/80 dark:bg-slate-800/60 rounded-t-2xl">
+                <div class="flex items-center space-x-2.5">
+                    <div class="p-2 bg-teal-500/10 dark:bg-teal-400/10 text-teal-600 dark:text-teal-400 rounded-xl">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-slate-100">
+                        System Configuration
+                    </h3>
+                </div>
                 <button onclick="closeSettingsModal()"
-                    class="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-indigo-800 transition">
+                    class="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                         class="w-5 h-5">
@@ -137,12 +160,12 @@
             </div>
 
             <!-- Modal Body -->
-            <div class="p-8 space-y-8">
+            <div class="p-6 sm:p-8 space-y-7">
 
                 <!-- Export Section -->
                 <div>
-                    <h4 class="text-lg font-bold text-gray-800 dark:text-gray-200 mb-2 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-indigo-500" viewBox="0 0 24 24"
+                    <h4 class="text-base font-bold text-slate-900 dark:text-slate-100 mb-1.5 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-teal-600 dark:text-teal-400" viewBox="0 0 24 24"
                             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -151,11 +174,10 @@
                         </svg>
                         Export Configuration
                     </h4>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Download a JSON file containing all your
-                        job configurations, including scripts, environments, and schedules.</p>
+                    <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-3.5">Download a structured JSON file containing all active job definitions, environments, and schedules.</p>
                     <button onclick="handleExport()"
-                        class="flex items-center px-4 py-2 bg-indigo-50 dark:bg-indigo-900 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-semibold rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-800 transition shadow-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none"
+                        class="flex items-center px-4 py-2 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 font-semibold rounded-xl text-sm hover:bg-teal-100 dark:hover:bg-teal-900/60 transition shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-teal-600 dark:text-teal-400" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
@@ -165,12 +187,12 @@
                     </button>
                 </div>
 
-                <hr class="border-gray-100 dark:border-gray-700">
+                <hr class="border-slate-200 dark:border-slate-800">
 
                 <!-- Import Section -->
                 <div>
-                    <h4 class="text-lg font-bold text-gray-800 dark:text-gray-200 mb-2 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2 text-green-500" viewBox="0 0 24 24"
+                    <h4 class="text-base font-bold text-slate-900 dark:text-slate-100 mb-1.5 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2 text-emerald-500" viewBox="0 0 24 24"
                             fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                             stroke-linejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -179,29 +201,27 @@
                         </svg>
                         Import Configuration
                     </h4>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Upload a configuration file to restore or
-                        add jobs. <strong class="text-yellow-600 dark:text-yellow-500">Note:</strong> Imported jobs will
-                        be appended as new entries (duplicates may occur).</p>
+                    <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-3.5">Upload a JSON backup to append or restore jobs. <span class="text-amber-600 dark:text-amber-400 font-medium">Note:</span> Imported jobs will be appended as new instances.</p>
 
                     <div id="drop-zone"
-                        class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl p-8 text-center bg-gray-50 dark:bg-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700 transition cursor-pointer relative"
-                        ondragover="event.preventDefault(); this.classList.add('border-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/20')"
-                        ondragleave="this.classList.remove('border-indigo-500', 'bg-indigo-50', 'dark:bg-indigo-900/20')"
+                        class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-7 text-center bg-slate-50/60 dark:bg-slate-800/30 hover:border-teal-500 hover:bg-teal-50/30 dark:hover:bg-teal-950/20 transition cursor-pointer relative"
+                        ondragover="event.preventDefault(); this.classList.add('border-teal-500', 'bg-teal-50/40', 'dark:bg-teal-950/30')"
+                        ondragleave="this.classList.remove('border-teal-500', 'bg-teal-50/40', 'dark:bg-teal-950/30')"
                         ondrop="handleDrop(event)" onclick="document.getElementById('import-file-input').click()">
 
                         <input type="file" id="import-file-input" class="hidden" accept=".json"
                             onchange="handleFileSelect(event)">
 
                         <div class="pointer-events-none">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto text-gray-400 mb-3"
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-9 w-9 mx-auto text-slate-400 dark:text-slate-500 mb-2.5"
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                 stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                 <polyline points="17 8 12 3 7 8"></polyline>
                                 <line x1="12" y1="3" x2="12" y2="15"></line>
                             </svg>
-                            <p class="text-gray-600 dark:text-gray-300 font-medium">Drag & Drop JSON file here</p>
-                            <p class="text-xs text-gray-400 mt-1">or click to browse</p>
+                            <p class="text-slate-700 dark:text-slate-300 font-semibold text-sm">Drag & Drop JSON backup file</p>
+                            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">or click anywhere to browse</p>
                         </div>
                     </div>
                 </div>
@@ -210,31 +230,32 @@
         </div>
     </div>
 
-
     <script src="/static/script.js"></script>
 
-    <!-- Footer with build info -->
+    <!-- Footer with build info & theme switch -->
     <footer
-        class="w-full bg-white dark:bg-slate-800 border-t border-gray-100 dark:border-gray-700 mt-8 transition-colors duration-300">
+        class="w-full bg-white/90 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 mt-12 transition-colors duration-300">
         <div
-            class="max-w-7xl mx-auto px-4 sm:px-8 py-3 text-sm text-gray-500 dark:text-gray-400 flex justify-between items-center flex-wrap gap-3">
-            <div class="text-xs text-gray-400 dark:text-gray-500">© TheSwitch</div>
+            class="max-w-7xl mx-auto px-4 sm:px-8 py-4 text-sm text-slate-500 dark:text-slate-400 flex justify-between items-center flex-wrap gap-4">
+            <div class="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center">
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
+                The Switch &bull; Automation Runtime
+            </div>
             <div class="flex space-x-4 items-center flex-wrap gap-3">
-                <div class="text-xs text-gray-600 dark:text-gray-400">Version: <span id="build-version"
-                        class="font-mono text-sm">dev</span></div>
-                <div class="text-xs text-gray-600 dark:text-gray-400">Revision: <span id="build-revision"
-                        class="font-mono text-sm">none</span></div>
-                <div class="text-xs text-gray-600 dark:text-gray-400">Built: <span id="build-time"
-                        class="font-mono text-sm">unknown</span>
+                <div class="text-xs text-slate-600 dark:text-slate-400">Ver: <span id="build-version"
+                        class="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">dev</span></div>
+                <div class="text-xs text-slate-600 dark:text-slate-400">Rev: <span id="build-revision"
+                        class="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">none</span></div>
+                <div class="text-xs text-slate-600 dark:text-slate-400">Built: <span id="build-time"
+                        class="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200">unknown</span>
                 </div>
                 <!-- Theme Toggle -->
-                <div class="flex items-center space-x-2">
-                    <span class="text-xs text-gray-600 dark:text-gray-400">Theme:</span>
-                    <button id="theme-toggle" class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
+                <div class="flex items-center space-x-2 pl-2 border-l border-slate-200 dark:border-slate-800">
+                    <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Theme:</span>
+                    <button id="theme-toggle" class="theme-toggle" title="Toggle theme (System / Light / Dark)" aria-label="Toggle theme">
                         <div class="theme-toggle-slider">
                             <svg id="theme-icon" class="theme-icon" fill="none" stroke="currentColor"
                                 viewBox="0 0 24 24">
-                                <!-- Sun icon (default) -->
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                     d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z">
                                 </path>
