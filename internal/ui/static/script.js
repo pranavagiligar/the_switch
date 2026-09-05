@@ -403,21 +403,14 @@ function renderJobList(jobs) {
                         ${renderIcon('clock', 'w-4 h-4 mr-2 text-teal-600 dark:text-teal-400')}
                         <strong>Cron:</strong> <code class="ml-1.5 font-mono bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200/60 dark:border-teal-800/60 px-2 py-0.5 rounded-md text-xs font-bold">${escapeHtml(job.cronExpression)}</code>
                     </div>
+                                     <div class="flex items-center text-amber-600 dark:text-amber-400 font-semibold text-xs">
+                        ${renderIcon('skip-forward', 'w-3.5 h-3.5 mr-1.5 text-amber-500')} Skip Count: <span id="skip-count-${escapeHtml(job.id)}" class="ml-1 font-bold text-amber-700 dark:text-amber-300">${job.skipCount || 0}</span>
+                    </div>
                     
                     <div class="flex items-center text-slate-500 dark:text-slate-400 text-xs">
-                        ${renderIcon('calendar', 'w-3.5 h-3.5 mr-1.5 text-slate-400')}
-                        Created: <span class="ml-1">${createdAt}</span>
+                        ${renderIcon(updatedDifferent ? 'edit-3' : 'calendar', 'w-3.5 h-3.5 mr-1.5 text-slate-400')}
+                        ${updatedDifferent ? `Modified: <span class="ml-1" title="Created: ${createdAt}">${escapeHtml(updatedAt)}</span>` : `Created: <span class="ml-1">${createdAt}</span>`}
                     </div>
-                    ${updatedDifferent ? `
-                    <div class="flex items-center text-slate-500 dark:text-slate-400 text-xs">
-                        ${renderIcon('edit-3', 'w-3.5 h-3.5 mr-1.5 text-slate-400')}
-                        Modified: <span class="ml-1">${escapeHtml(updatedAt)}</span>
-                    </div>
-                    ` : `
-                    <div class="flex items-center text-amber-600 dark:text-amber-400 font-semibold text-xs">
-                        ${renderIcon('skip-forward', 'w-3.5 h-3.5 mr-1.5 text-amber-500')} Skip Count: <span id="skip-count-${escapeHtml(job.id)}" class="ml-1 font-bold text-amber-700 dark:text-amber-300">${job.skipCount}</span>
-                    </div>
-                    `}
                 </div> 
                 ${cronWarning}
                 ${notifyHtml}
@@ -468,15 +461,15 @@ async function handleDeleteJob(jobId, jobTitle) {
 
     if (response && response.status === 204) {
         showMessage(`Job '${jobTitle}' deleted successfully.`, 'success');
-        // Remove job from the list immediately
-        const jobElement = document.getElementById(`job-${jobId}`);
-        if (jobElement) jobElement.classList.add('animate-out', 'fade-out', 'slide-out-to-right-4'); // Tailwind animation classes are not available by default, but applying a class for removal.
-
-        // Use a short delay before actually removing the element
+        const jobCard = document.getElementById(`job-${jobId}`);
+        if (jobCard) {
+            jobCard.classList.add('opacity-0', 'transform', 'scale-95');
+            setTimeout(() => {
+                jobCard.remove();
+            }, 300);
+        }
+        jobList = jobList.filter(job => job.id !== jobId);
         setTimeout(() => {
-            if (jobElement) jobElement.remove();
-
-            // Check if the list is empty and re-render if necessary
             const jobListContainer = document.getElementById('job-list-container');
             if (jobListContainer) {
                 const grid = jobListContainer.querySelector('.grid');
@@ -493,20 +486,47 @@ async function handleDeleteJob(jobId, jobTitle) {
 }
 
 async function handleSkipJob(jobId) {
+    const skipBtn = document.querySelector(`#job-${jobId} button[onclick*='handleSkipJob']`);
     const skipElement = document.getElementById(`skip-count-${jobId}`);
-    const originalCount = skipElement.textContent;
-    skipElement.innerHTML = `${renderIcon('loader-2', 'w-4 h-4 animate-spin inline')}`; // Loading indicator
+    const originalBtnContent = skipBtn ? skipBtn.innerHTML : null;
+    const originalCount = skipElement ? skipElement.textContent : null;
 
-    const response = await authFetch(`${API_BASE}/api/jobs/${jobId}/skip`, { method: 'POST' });
+    if (skipBtn) {
+        skipBtn.disabled = true;
+    }
+    if (skipElement) {
+        skipElement.innerHTML = `${renderIcon('loader-2', 'w-3.5 h-3.5 animate-spin inline')}`;
+    }
 
-    if (response && response.ok) {
-        const result = await response.json();
-        skipElement.textContent = result.skipCount;
-        showMessage("Job skip count incremented.", 'success');
-    } else {
-        skipElement.textContent = originalCount;
-        const error = response ? await response.json() : { error: 'Connection failed' };
-        showMessage(error.error || "Failed to skip job.", 'error');
+    try {
+        const response = await authFetch(`${API_BASE}/api/jobs/${jobId}/skip`, { method: 'POST' });
+
+        if (response && response.ok) {
+            const result = await response.json();
+            if (skipElement) {
+                skipElement.textContent = result.skipCount;
+            }
+            showMessage("Job skip count incremented.", 'success');
+            fetchJobs();
+        } else {
+            if (skipElement && originalCount !== null) {
+                skipElement.textContent = originalCount;
+            }
+            const error = response ? await response.json() : { error: 'Connection failed' };
+            showMessage(error.error || "Failed to skip job.", 'error');
+        }
+    } catch (err) {
+        if (skipElement && originalCount !== null) {
+            skipElement.textContent = originalCount;
+        }
+        showMessage("An error occurred while skipping job.", 'error');
+    } finally {
+        if (skipBtn) {
+            skipBtn.disabled = false;
+            if (originalBtnContent) {
+                skipBtn.innerHTML = originalBtnContent;
+            }
+        }
     }
 }
 
@@ -1012,7 +1032,6 @@ function renderHistoryListInModal(history) {
         const cardBg = isSuccess ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/70 dark:border-emerald-900/50' : 'bg-rose-50/50 dark:bg-rose-950/20 border-rose-200/70 dark:border-rose-900/50';
         const iconName = isSuccess ? 'check-circle' : 'x-circle';
         const iconColor = isSuccess ? 'text-emerald-500' : 'text-rose-500';
-        const startTime = new Date(exec.startTime).toLocaleTimeString();
         const fullDateTime = new Date(exec.startTime).toLocaleString();
         const durationSeconds = (exec.duration / 1000).toFixed(2);
         const exitCodeDisplay = exec.exitCode >= 0 ? exec.exitCode : 'N/A';
@@ -1023,7 +1042,7 @@ function renderHistoryListInModal(history) {
                     <div class="flex items-center space-x-2">
                         <span class="${iconColor}">${renderIcon(iconName, 'w-4 h-4')}</span>
                         <span class="font-extrabold">${escapeHtml(exec.status)}</span>
-                        <span class="text-slate-500 dark:text-slate-400 font-normal text-xs pl-2" title="${fullDateTime}">@ ${startTime}</span>
+                        <span class="text-slate-500 dark:text-slate-400 font-normal text-xs pl-2">${fullDateTime}</span>
                     </div>
                     <div class="text-slate-500 dark:text-slate-400 font-mono text-xs text-right">
                         <span>${durationSeconds}s</span> &bull; <span>Exit ${exitCodeDisplay}</span>
